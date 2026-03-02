@@ -1,0 +1,24 @@
+[
+  {
+    "token": "SOL",
+    "pair": "SOL/USDC",
+    "dex": "raydium",
+    "address": "So11111111111111111111111111111111111111112",
+    "reward_token": "RAY",
+    "reward_apr": 15.0,
+    "fee_tier": 0.25,
+    "risk_score": 2,
+    "notes": "Core pair, high volume"
+  },
+  {
+    "token": "JUP",
+    "pair": "JUP/USDC",
+    "dex": "meteora",
+    "address": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+    "reward_token": "MET",
+    "reward_apr": 25.0,
+    "fee_tier": 0.30,
+    "risk_score": 4,
+    "notes": "Incentivized DLMM pool"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {"keyword": "AI agent", "category": "AI", "tokens": ["AI16Z", "VIRTUAL", "GRIFFAIN", "ARC"]},
+  {"keyword": "RWA token", "category": "RWA", "tokens": ["ONDO", "MAPLE", "CENTRIFUGE"]},
+  {"keyword": "meme solana", "category": "MEME", "tokens": ["BONK", "WIF", "POPCAT", "MEW"]},
+  {"keyword": "DePIN crypto", "category": "DEPIN", "tokens": ["RNDR", "HNT", "MOBILE", "IO"]},
+  {"keyword": "liquid staking solana", "category": "LST", "tokens": ["MSOL", "JITOSOL", "BSOL"]},
+  {"keyword": "gaming crypto solana", "category": "GAMING", "tokens": ["ATLAS", "DUST", "GMT"]}
+]
