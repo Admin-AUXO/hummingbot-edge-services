@@ -83,7 +83,7 @@ Override any setting via environment variables using each service's prefix:
 | correlation | `CORR_` | `TARGET_PAIR`, `REFERENCE_PAIRS` (ETHUSDT,BTCUSDT) | Binance |
 | alpha | `ALPHA_` | `MIN_SCORE` (7), `MIN_LIQUIDITY` (50000), `POLL_INTERVAL_SECONDS` (900) | DexScreener |
 | arb | `ARB_` | `MIN_ARB_PCT` (0.5), `MIN_LIQUIDITY` (5000), `TOKENS_FILE` (./tokens.json) | DexScreener |
-| funding-scanner | `FSCAN_` | `HIGH_RATE_THRESHOLD` (0.0003), `WATCH_SYMBOLS`, `MIN_ANNUALIZED_APR` (30) | Binance Futures |
+| funding-scanner | `FSCAN_` | `HIGH_RATE_THRESHOLD` (0.0003), `SYMBOLS_FILE` (./symbols.json), `MIN_ANNUALIZED_APR` (30) | Binance Futures |
 | narrative | `NARR_` | `MIN_VOLUME_SPIKE` (2.0), `MIN_VOLUME_24H` (50000), `NARRATIVES_FILE` | DexScreener |
 | rewards | `REWARDS_` | `MIN_EFFECTIVE_APR` (20), `POOLS_FILE` (./pools.json), `MAX_RISK_SCORE` (8) | DexScreener |
 
@@ -103,6 +103,7 @@ Override any setting via environment variables using each service's prefix:
 | alert | `ALERT_` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, per-signal toggles |
 | swarm | `SWARM_` | `MAX_ACTIVE_BOTS` (50), `CAPITAL_PER_BOT` (10), `AUTO_DEPLOY` (false) |
 | clmm | `CLMM_` | `TARGET_PAIR` (sol_usdc), `BASE_RANGE_PCT` (2.0), `REBALANCE_THRESHOLD_PCT` (70) |
+| watchlist | `WL_` | `EVAL_INTERVAL_SECONDS` (300), `MAX_ARB_TOKENS` (40), `MAX_REWARDS_POOLS` (20), `MAX_FUNDING_SYMBOLS` (20) |
 
 ### Tier 4 — Manual / on-demand
 
@@ -140,6 +141,7 @@ cd A:\Trading\lab-service;                  python lab_service.py
 cd A:\Trading\alert-service;                python alert_service.py
 cd A:\Trading\swarm-service;                python swarm_service.py
 cd A:\Trading\clmm-service;                 python clmm_service.py
+cd A:\Trading\watchlist-service;            python watchlist_service.py
 
 # Tier 4 — Manual / on-demand
 cd A:\Trading\unlock-service;               python unlock_service.py
@@ -165,7 +167,7 @@ cd A:\Trading\migration-service;            python migration_service.py
    cd A:\Trading\alert-service; python alert_service.py
    ```
 
-**Alerts cover:** regime changes, correlation shifts, funding rates, inventory/kill switch, alpha signals, new listings, unlock events, PnL reports, backtest results, hedge actions, lab experiments, arb opportunities, funding scan rankings, narrative spikes, swarm deployments, CLMM rebalances, migration events, new pools, reward rankings.
+**Alerts cover:** regime changes, correlation shifts, funding rates, inventory/kill switch, alpha signals, new listings, unlock events, PnL reports, backtest results, hedge actions, lab experiments, arb opportunities, funding scan rankings, narrative spikes, swarm deployments, CLMM rebalances, migration events, new pools, reward rankings, watchlist add/remove events.
 
 ---
 
@@ -232,6 +234,9 @@ Edit `unlock-service/unlocks.json` with entries from [TokenUnlocks.app](https://
 | `hbot/migration/new_pool/{token}` | Brand-new pool detections (<60min) |
 | `hbot/rewards/{token}` | Per-pool APR + risk-adjusted ranking |
 | `hbot/rewards/summary` | Top 5 pools by risk-adjusted APR |
+| `hbot/watchlist/added/{type}/{symbol}` | Token auto-added to arb/rewards/funding list |
+| `hbot/watchlist/removed/{type}/{symbol}` | Stale token auto-removed from list |
+| `hbot/watchlist/status` | Watchlist counts (arb, rewards, funding) |
 
 Alert service subscribes to `hbot/#` and forwards to Telegram.
 
@@ -250,7 +255,7 @@ Edge Services (Python → MQTT)          └── Gateway       :15888 (DEX rou
 │   arb, funding-scanner,              ├── Hummingbot CLI (executes trades)
 │   narrative, rewards                 └── Gateway (on-chain transactions)
 ├── Tier 2: inventory, hedge, pnl
-├── Tier 3: lab, alert, swarm, clmm
+├── Tier 3: lab, alert, swarm, clmm, watchlist
 └── Tier 4: unlock, backtest, migration
 ```
 

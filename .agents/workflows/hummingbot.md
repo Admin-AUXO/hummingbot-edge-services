@@ -140,16 +140,18 @@ docker compose up -d
 ┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
 │ Hummingbot API  │────│  EMQX Broker │────│  Hummingbot Bot │
 │   :8000         │    │    :1883     │    │   (CLI client)  │
-└────────┬────────┘    └──────────────┘    └────────┬────────┘
-         │                                          │
-    ┌────┴────┐                              ┌──────┴──────┐
-    │PostgreSQL│                              │  Gateway    │
-    │  :5432   │                              │   :15888    │
-    └──────────┘                              └──────┬──────┘
-                                                     │
-                                              ┌──────┴──────┐
-                                              │   DEX       │
-                                              │ (Uniswap,   │
-                                              │ PancakeSwap)│
-                                              └─────────────┘
+└────────┬────────┘    └──────┬───────┘    └────────┬────────┘
+         │                    │                     │
+    ┌────┴────┐     ┌────────┴────────┐     ┌──────┴──────┐
+    │PostgreSQL│     │  Edge Services  │     │  Gateway    │
+    │  :5432   │     │  (20 Python)   │     │   :15888    │
+    └──────────┘     └────────────────┘     └──────┬──────┘
+                                                    │
+Edge Services (all communicate via MQTT):     ┌─────┴───────┐
+  Tier 1: regime, session, funding,           │   DEX       │
+    correlation, alpha, arb,                  │ (Raydium,   │
+    funding-scanner, narrative, rewards       │ Orca, etc.) │
+  Tier 2: inventory, hedge, pnl              └─────────────┘
+  Tier 3: lab, alert, swarm, clmm, watchlist
+  Tier 4: unlock, backtest, migration
 ```

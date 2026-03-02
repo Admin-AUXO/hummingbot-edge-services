@@ -11,10 +11,7 @@ class FundingScannerConfig(BaseServiceConfig):
     poll_interval_seconds: int = 300
 
     binance_url: str = "https://fapi.binance.com/fapi/v1/premiumIndex"
-    watch_symbols: list[str] = [
-        "SOLUSDT", "WIFUSDT", "JUPUSDT", "JTOUSDT", "PYTHUSDT",
-        "WUSDT", "RNDRUSDT", "BONKUSDT", "RAYUSDT", "ONSUSDT",
-    ]
+    symbols_file: str = "./symbols.json"
 
     high_rate_threshold: float = 0.0003
     extreme_rate_threshold: float = 0.001

@@ -434,7 +434,7 @@ This is what quantitative hedge funds do. They don't guess — they measure, ite
 ```
 [arb-service] ──polls every 60s──>
     │
-    ├── Reads tokens.json (operator-maintained watchlist with addresses)
+    ├── Reads tokens.json (auto-managed by watchlist-service + operator seeds)
     ├── GET DexScreener /tokens/{address} for each token
     ├── Groups Solana pairs by DEX (keeps best-liquidity pair per DEX)
     ├── Compares all DEX pairs pairwise: spread_pct = |price_a - price_b| / min(a, b) * 100
@@ -455,7 +455,7 @@ This is what quantitative hedge funds do. They don't guess — they measure, ite
 
 ## System 9: Multi-Pair Funding Scanner — IMPLEMENTED
 
-> **Implementation**: `funding-scanner-service/` — fetches ALL Binance Futures funding rates in a single API call, filters a configurable watchlist, classifies HIGH/EXTREME, publishes per-symbol + ranked summary to `hbot/funding_scan/{SYMBOL}`.
+> **Implementation**: `funding-scanner-service/` — fetches ALL Binance Futures funding rates in a single API call, filters symbols from `symbols.json` (dynamically managed by watchlist-service), classifies HIGH/EXTREME, publishes per-symbol + ranked summary to `hbot/funding_scan/{SYMBOL}`.
 
 **Problem it solves**: `funding-service` monitors a single pair. This scans the entire futures market to find the best funding rate harvesting opportunities across all watched symbols.
 
@@ -465,7 +465,7 @@ This is what quantitative hedge funds do. They don't guess — they measure, ite
 [funding-scanner-service] ──polls every 5min──>
     │
     ├── GET Binance /fapi/v1/premiumIndex (returns ALL symbols in one call)
-    ├── Filters to watch_symbols list (SOLUSDT, WIFUSDT, JUPUSDT, etc.)
+    ├── Reads symbols.json each cycle (auto-updated by watchlist-service)
     ├── Classifies: HIGH (> 0.03%), EXTREME (> 0.1%)
     ├── Calculates annualized APR: rate × 3 × 365 × 100
     ├── Filters: annualized_apr >= min_annualized_apr (30%)
@@ -595,7 +595,7 @@ AI, RWA, MEME, DEPIN, LST, GAMING — each with keyword→token mappings. Operat
 ```
 [rewards-service] ──polls every 1h──>
     │
-    ├── Reads pools.json (operator-maintained: token, pair, dex, reward_token, reward_apr, risk_score)
+    ├── Reads pools.json (auto-managed by watchlist-service + operator seeds)
     ├── Fetches live volume/liquidity from DexScreener for each pool
     ├── Calculates:
     │   ├── fee_apr = (volume_24h × fee_tier / 100) / liquidity × 365 × 100
@@ -605,6 +605,81 @@ AI, RWA, MEME, DEPIN, LST, GAMING — each with keyword→token mappings. Operat
     ├── Ranks by risk_adjusted_apr
     └── Publishes: hbot/rewards/{TOKEN} + hbot/rewards/summary (top 5)
 ```
+
+---
+
+## System 15: Auto Token Watchlist Manager — IMPLEMENTED
+
+> **Implementation**: `watchlist-service/` — subscribes to `hbot/alpha/#` and `hbot/narrative/#`, polls DexScreener trending endpoints, evaluates tokens against liquidity/volume thresholds, auto-adds to `arb-service/tokens.json`, `rewards-service/pools.json`, `funding-scanner-service/symbols.json`. Prunes stale entries using market data. Publishes add/remove events to `hbot/watchlist/`.
+
+**Problem it solves**: Three services use static JSON files for token tracking (`arb-service/tokens.json`, `rewards-service/pools.json`, `funding-scanner-service/symbols.json`). Meanwhile, `alpha-service` and `narrative-service` continuously discover trending tokens but nothing feeds those discoveries back into the tracking lists. Tokens must be manually added/removed.
+
+### How It Works
+
+```
+[watchlist-service] ──subscribes to hbot/alpha/# + hbot/narrative/#──>
+    │
+    ├── SIGNAL INTAKE:
+    │   ├── Buffers alpha signals (scored tokens, new listings)
+    │   ├── Buffers narrative signals (volume spikes by category)
+    │   └── Polls DexScreener boosts/profiles every 15min for trending Solana tokens
+    │
+    ├── EVAL CYCLE (every 5min):
+    │   ├── Checks each signal against add criteria:
+    │   │   ├── Arb: not duplicate by address, under 40-token cap, liq >= $50K, vol >= $100K
+    │   │   ├── Rewards: not duplicate, under 20-pool cap, liq >= $100K, vol >= $100K
+    │   │   └── Funding: derives {TOKEN}USDT symbol, not duplicate, under 20-symbol cap
+    │   ├── Builds entries with tracking metadata (added_at, source, stale_cycles)
+    │   └── Writes updated JSON files consumed by arb/rewards/funding services
+    │
+    ├── PRUNE CYCLE (every 5min):
+    │   ├── Fetches live market data from DexScreener for non-static entries
+    │   ├── Static entries (operator seeds) are pinned — never removed
+    │   ├── If vol < $10K AND liq < $5K → increment stale counter
+    │   ├── 3 consecutive stale cycles → remove from list
+    │   └── Publishes remove event to hbot/watchlist/removed/{type}/{symbol}
+    │
+    └── OUTPUT:
+        ├── arb-service/tokens.json    → [{symbol, address}]
+        ├── rewards-service/pools.json → [{token, pair, dex, address, ...}]
+        ├── funding-scanner-service/symbols.json → ["SOLUSDT", ...]
+        └── MQTT: hbot/watchlist/added/*, hbot/watchlist/removed/*, hbot/watchlist/status
+```
+
+### Key Parameters (watchlist-service/config.py)
+
+| Parameter | Default | Purpose |
+|---|---|---|
+| `eval_interval_seconds` | 300 | Eval cycle frequency |
+| `boost_poll_seconds` | 900 | DexScreener trending poll |
+| `min_liquidity_arb` | $50K | Min liquidity for arb list |
+| `min_liquidity_rewards` | $100K | Min liquidity for rewards list |
+| `min_volume_24h` | $100K | Min 24h volume for any list |
+| `max_arb_tokens` | 40 | Cap on arb token watchlist |
+| `max_rewards_pools` | 20 | Cap on rewards pool list |
+| `max_funding_symbols` | 20 | Cap on funding symbols list |
+| `stale_cycles_threshold` | 3 | Consecutive stale cycles before removal |
+| `stale_volume_threshold` | $10K | Volume below this counts as stale |
+| `stale_liquidity_threshold` | $5K | Liquidity below this counts as stale |
+
+### Rate Limit Budget
+
+Staleness checks: up to 60 DexScreener calls per eval (every 5 min) = 12 req/min. Trending polls: 2 req/15min. Combined with arb-service's 40 req/min = 52 req/min total (within 300 req/min limit).
+
+### Data Flow
+
+```
+alpha-service ──signal──┐
+                        ├──> watchlist-service ──writes──> tokens.json ──read by──> arb-service
+narrative-service ──signal──┤                  ──writes──> pools.json  ──read by──> rewards-service
+                        │                      ──writes──> symbols.json ──read by──> funding-scanner
+DexScreener trending ───┘
+```
+
+### Static vs Dynamic Entries
+
+- **Static entries** (source: "static"): Seeded from existing JSONs on first boot. Pinned — never pruned, always preserved.
+- **Dynamic entries** (source: "alpha", "narrative", "dex_boost", "dex_profile"): Added by signals. Subject to staleness checks and auto-removal.
 
 ---
 
@@ -626,8 +701,9 @@ AI, RWA, MEME, DEPIN, LST, GAMING — each with keyword→token mappings. Operat
 | 12 | CLMM Range Optimizer | IMPLEMENTED | `clmm-service/` |
 | 13 | Airdrop & Migration Monitor | IMPLEMENTED | `migration-service/` |
 | 14 | LP Reward Tracker | IMPLEMENTED | `rewards-service/` |
+| 15 | Auto Token Watchlist | IMPLEMENTED | `watchlist-service/` |
 
-Supporting services: `inventory-service/`, `correlation-service/`, `alert-service/` (Telegram alerts for all 14 systems).
+Supporting services: `inventory-service/`, `correlation-service/`, `alert-service/` (Telegram alerts for all 15 systems).
 
 ---
 

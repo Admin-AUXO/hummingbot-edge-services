@@ -39,5 +39,6 @@ class AlertConfig(BaseServiceConfig):
     alert_on_clmm: bool = True
     alert_on_migration: bool = True
     alert_on_rewards: bool = True
+    alert_on_watchlist: bool = True
 
-    model_config = {"env_prefix": "ALERT_"}
+    model_config = {"env_prefix": "ALERT_", "env_file": ".env"}

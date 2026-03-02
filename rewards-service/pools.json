@@ -7,8 +7,7 @@
     "reward_token": "RAY",
     "reward_apr": 15.0,
     "fee_tier": 0.25,
-    "risk_score": 2,
-    "notes": "Core pair, high volume"
+    "risk_score": 2
   },
   {
     "token": "JUP",
@@ -17,8 +16,7 @@
     "address": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
     "reward_token": "MET",
     "reward_apr": 25.0,
-    "fee_tier": 0.30,
-    "risk_score": 4,
-    "notes": "Incentivized DLMM pool"
+    "fee_tier": 0.3,
+    "risk_score": 4
   }
 ]

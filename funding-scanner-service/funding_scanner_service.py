@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import time
@@ -26,6 +27,15 @@ class FundingScannerService(BaseService):
         super().__init__(FundingScannerConfig())
         self.last_signals = {}
 
+    def load_symbols(self):
+        path = os.path.join(os.path.dirname(__file__), self.config.symbols_file)
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            self.logger.error(f"Failed to load symbols file: {e}")
+            return []
+
     def fetch_all_funding(self):
         try:
             resp = requests.get(self.config.binance_url, timeout=15)
@@ -37,7 +47,7 @@ class FundingScannerService(BaseService):
 
     def scan_and_publish(self):
         all_rates = self.fetch_all_funding()
-        watch_set = set(self.config.watch_symbols)
+        watch_set = set(self.load_symbols())
         opportunities = []
 
         for entry in all_rates:
@@ -93,8 +103,9 @@ class FundingScannerService(BaseService):
 
     def run(self):
         self.connect_mqtt()
+        symbols = self.load_symbols()
         self.logger.info(
-            f"Funding scanner started, monitoring {len(self.config.watch_symbols)} symbols "
+            f"Funding scanner started, monitoring {len(symbols)} symbols "
             f"every {self.config.poll_interval_seconds}s"
         )
 

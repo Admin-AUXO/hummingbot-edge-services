@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -9,6 +10,48 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config import AlertConfig
 from shared.base_service import BaseService
+
+
+def _fmt_usd(v):
+    v = float(v or 0)
+    if abs(v) >= 1_000_000:
+        return f"${v / 1_000_000:,.2f}M"
+    if abs(v) >= 1_000:
+        return f"${v / 1_000:,.1f}K"
+    return f"${v:,.2f}"
+
+
+def _fmt_pct(v, decimals=2):
+    return f"{float(v or 0):.{decimals}f}%"
+
+
+def _fmt_ts(epoch_ms):
+    if not epoch_ms:
+        return "?"
+    ts = epoch_ms / 1000 if epoch_ms > 1e12 else epoch_ms
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%H:%M UTC")
+
+
+def _fmt_hours(h):
+    h = float(h or 0)
+    if h >= 24:
+        return f"{h / 24:.1f}d"
+    return f"{h:.1f}h"
+
+
+def _sign(v):
+    v = float(v or 0)
+    if v > 0:
+        return f"+{v}"
+    return str(v)
+
+
+def _bar(score, max_score=10):
+    filled = int(round(float(score or 0) / max_score * 5))
+    return "█" * filled + "░" * (5 - filled)
+
+
+MIN_PROFIT_100 = 10
 
 
 class AlertService(BaseService):
@@ -39,10 +82,20 @@ class AlertService(BaseService):
         prev = self.state.get(key)
         current = data.get("regime")
         if prev and prev != current and self.config.alert_on_regime_change:
+            symbol = data.get("symbol", topic.split("/")[-1])
+            natr = float(data.get("natr", 0))
+            bbw = float(data.get("bb_width", 0))
+            vol_label = "HIGH" if natr > 0.02 else "LOW" if natr < 0.008 else "MID"
+            regime_hint = {
+                "UPTREND": "Widen sell spreads, tighten buys",
+                "DOWNTREND": "Widen buy spreads, tighten sells",
+                "SIDEWAYS": "Symmetric tight spreads",
+            }.get(current, "")
             self.send_telegram(
-                f"<b>Regime Change</b>\n"
+                f"📊 <b>Regime Change — {symbol}</b>\n"
                 f"{prev} → <b>{current}</b>\n"
-                f"NATR: {data.get('natr', 0):.4f} | BBW: {data.get('bb_width', 0):.4f}"
+                f"Volatility: {natr * 100:.2f}% NATR ({vol_label}) | BBW: {bbw:.4f}\n"
+                f"<i>{regime_hint}</i>"
             )
         self.state[key] = current
 
@@ -51,10 +104,20 @@ class AlertService(BaseService):
         prev = self.state.get(key)
         current = data.get("signal")
         if prev and prev != current and self.config.alert_on_correlation_change:
+            target = data.get("target", topic.split("/")[-1])
+            avg_z = float(data.get("avg_z_score", 0))
+            avg_corr = float(data.get("avg_correlation", 0))
+            bias = float(data.get("spread_bias", 0))
+            z_scores = data.get("z_scores", {})
+            z_parts = [f"{k}: {v:+.2f}" for k, v in sorted(z_scores.items(), key=lambda x: abs(x[1]), reverse=True)[:3]]
+            z_detail = " | ".join(z_parts) if z_parts else "N/A"
+            bias_dir = "BUY wider" if bias > 0 else "SELL wider" if bias < 0 else "neutral"
             self.send_telegram(
-                f"<b>Correlation Signal</b>\n"
+                f"🔗 <b>Correlation Signal — {target}</b>\n"
                 f"{prev} → <b>{current}</b>\n"
-                f"Z: {data.get('avg_z_score', 0):.4f} | Bias: {data.get('spread_bias', 0):.4f}"
+                f"Avg Z: {avg_z:+.3f} | Avg Corr: {avg_corr:.3f}\n"
+                f"Top Z-scores: {z_detail}\n"
+                f"Spread bias: {bias:+.4f} ({bias_dir})"
             )
         self.state[key] = current
 
@@ -65,32 +128,49 @@ class AlertService(BaseService):
         prev_kill = self.state.get(key_kill)
         current_signal = data.get("signal")
         current_kill = data.get("kill", False)
-        drawdown = data.get("drawdown_pct", 0)
+        drawdown = float(data.get("drawdown_pct", 0))
+        total_val = float(data.get("total_value", 0))
+        peak_val = float(data.get("peak_value", 0))
+        base_val = float(data.get("base_value", 0))
+        quote_val = float(data.get("quote_value", 0))
+        skew = float(data.get("inventory_skew", 0))
+        bias = float(data.get("skew_bias", 0))
+        target = data.get("target", topic.split("/")[-1])
+        base_pct = (base_val / total_val * 100) if total_val > 0 else 0
+        loss_usd = peak_val - total_val if peak_val > total_val else 0
 
         if prev_signal and prev_signal != current_signal and self.config.alert_on_inventory_change:
+            skew_dir = "BASE heavy" if skew > 0 else "QUOTE heavy" if skew < 0 else "balanced"
             self.send_telegram(
-                f"<b>Inventory Signal</b>\n"
+                f"📦 <b>Inventory Signal — {target}</b>\n"
                 f"{prev_signal} → <b>{current_signal}</b>\n"
-                f"Skew: {data.get('inventory_skew', 0):.4f} | Bias: {data.get('skew_bias', 0):.4f}\n"
-                f"Base: {data.get('base_value', 0):.2f} | Quote: {data.get('quote_value', 0):.2f}"
+                f"Portfolio: {_fmt_usd(total_val)} (base {base_pct:.0f}% / quote {100 - base_pct:.0f}%)\n"
+                f"Skew: {skew:+.4f} ({skew_dir}) | Bias: {bias:+.4f}\n"
+                f"Base: {_fmt_usd(base_val)} | Quote: {_fmt_usd(quote_val)}\n"
+                f"DD: {_fmt_pct(drawdown * 100)} from peak {_fmt_usd(peak_val)}"
             )
 
         if current_kill and not prev_kill and self.config.alert_on_kill_switch:
             self.send_telegram(
-                f"🚨 <b>KILL SWITCH ACTIVATED</b>\n"
-                f"Drawdown: {drawdown:.4f} | Total: {data.get('total_value', 0):.2f}\n"
-                f"All orders paused!"
+                f"🚨 <b>KILL SWITCH — {target}</b>\n"
+                f"Drawdown: {_fmt_pct(drawdown * 100)} ({_fmt_usd(loss_usd)} loss)\n"
+                f"Peak: {_fmt_usd(peak_val)} → Current: {_fmt_usd(total_val)}\n"
+                f"<b>ALL ORDERS PAUSED</b>"
             )
         elif not current_kill and prev_kill and self.config.alert_on_kill_switch:
-            self.send_telegram(f"✅ <b>Kill switch cleared</b>\nDrawdown recovered: {drawdown:.4f}")
+            self.send_telegram(
+                f"✅ <b>Kill Switch Cleared — {target}</b>\n"
+                f"DD recovered to {_fmt_pct(drawdown * 100)} | Value: {_fmt_usd(total_val)}\n"
+                f"Orders resuming"
+            )
 
         if drawdown >= self.config.drawdown_warning_threshold and self.config.alert_on_drawdown_warning:
             prev_dd = self.state.get(f"dd_warned:{topic}", False)
             if not prev_dd:
                 self.send_telegram(
-                    f"⚠️ <b>Drawdown Warning</b>\n"
-                    f"DD: {drawdown:.4f} (threshold: {self.config.drawdown_warning_threshold})\n"
-                    f"Peak: {data.get('peak_value', 0):.2f} | Current: {data.get('total_value', 0):.2f}"
+                    f"⚠️ <b>Drawdown Warning — {target}</b>\n"
+                    f"DD: {_fmt_pct(drawdown * 100)} (threshold: {_fmt_pct(self.config.drawdown_warning_threshold * 100)})\n"
+                    f"Loss: {_fmt_usd(loss_usd)} | Peak: {_fmt_usd(peak_val)} → {_fmt_usd(total_val)}"
                 )
                 self.state[f"dd_warned:{topic}"] = True
         else:
@@ -104,10 +184,21 @@ class AlertService(BaseService):
         prev = self.state.get(key)
         current = data.get("session")
         if prev and prev != current and self.config.alert_on_session_change:
+            target = data.get("target", topic.split("/")[-1])
+            spread_mult = float(data.get("spread_mult", 1.0))
+            utc_hour = data.get("utc_hour", "?")
+            session_info = {
+                "NIGHT": "Low liquidity, wider spreads",
+                "ASIA": "Moderate volume, Asia open",
+                "EU": "High volume, EU + overlap",
+                "US": "Peak volume, US session",
+            }.get(current, "")
+            mult_dir = "wider" if spread_mult > 1.0 else "tighter" if spread_mult < 1.0 else "standard"
             self.send_telegram(
-                f"<b>Session Change</b>\n"
-                f"{prev} → <b>{current}</b>\n"
-                f"Spread mult: {data.get('spread_mult', 1.0)}"
+                f"🕐 <b>Session Change — {target}</b>\n"
+                f"{prev} → <b>{current}</b> (UTC {utc_hour}:00)\n"
+                f"Spread mult: x{spread_mult:.2f} ({mult_dir})\n"
+                f"<i>{session_info}</i>"
             )
         self.state[key] = current
 
@@ -116,11 +207,27 @@ class AlertService(BaseService):
         prev = self.state.get(key)
         current = data.get("signal")
         if prev and prev != current and self.config.alert_on_funding_change:
+            target = data.get("target", topic.split("/")[-1])
+            rate = float(data.get("funding_rate", 0))
+            apr = float(data.get("annualized_rate", 0))
+            bias = float(data.get("spread_bias", 0))
+            next_ts = data.get("next_funding_time", 0)
+            direction = "Shorts pay longs" if rate > 0 else "Longs pay shorts"
+            per_8h_bps = rate * 10000
+            earn_100_8h = abs(rate) * 100
+            earn_100_day = earn_100_8h * 3
+            earn_100_month = earn_100_day * 30
+            if earn_100_month < MIN_PROFIT_100:
+                self.state[key] = current
+                return
             self.send_telegram(
-                f"<b>Funding Signal</b>\n"
+                f"💰 <b>Funding Signal — {target}</b>\n"
                 f"{prev} → <b>{current}</b>\n"
-                f"Rate: {data.get('funding_rate', 0):.6f} | APR: {data.get('annualized_rate', 0):.2f}%\n"
-                f"Bias: {data.get('spread_bias', 0):.4f}"
+                f"Rate: {rate:.6f} ({per_8h_bps:+.2f} bps/8h)\n"
+                f"Annualized: {_fmt_pct(apr)} | {direction}\n"
+                f"$100 trade → {_fmt_usd(earn_100_8h)}/8h | {_fmt_usd(earn_100_day)}/day | {_fmt_usd(earn_100_month)}/month\n"
+                f"Spread bias: {bias:+.4f}\n"
+                f"Next funding: {_fmt_ts(next_ts)}"
             )
         self.state[key] = current
 
@@ -128,57 +235,78 @@ class AlertService(BaseService):
         if not self.config.alert_on_analytics:
             return
         target = data.get("target", "?")
-        win_rate = data.get("win_rate", 0)
-        sharpe = data.get("sharpe_ratio", 0)
-        total_pnl = data.get("total_pnl", 0)
-        total = data.get("total_executors", 0)
-        drawdown = data.get("max_drawdown", 0)
+        win_rate = float(data.get("win_rate", 0))
+        sharpe = float(data.get("sharpe_ratio", 0))
+        total_pnl = float(data.get("total_pnl", 0))
+        total = int(data.get("total_executors", 0))
+        drawdown = float(data.get("max_drawdown", 0))
+        pf = float(data.get("profit_factor", 0))
         best = data.get("best_combo", "N/A")
         worst = data.get("worst_combo", "N/A")
+        period = data.get("period_hours", 24)
+        avg_pnl = float(data.get("avg_pnl", total_pnl / total if total > 0 else 0))
+        by_regime = data.get("by_regime", {})
+        by_session = data.get("by_session", {})
 
         alerts = []
         if win_rate < self.config.min_win_rate_alert:
-            alerts.append(f"Win rate {win_rate:.1%} below threshold {self.config.min_win_rate_alert:.1%}")
+            alerts.append(f"Win rate {win_rate:.1%} < {self.config.min_win_rate_alert:.1%}")
         if sharpe < 0:
-            alerts.append(f"Negative Sharpe ratio: {sharpe:.2f}")
+            alerts.append(f"Negative Sharpe: {sharpe:.2f}")
+        if pf > 0 and pf < 1.0:
+            alerts.append(f"Profit factor {pf:.2f} < 1.0 (losing)")
+
+        regime_parts = []
+        for r, rd in sorted(by_regime.items(), key=lambda x: x[1].get("pnl", 0), reverse=True):
+            regime_parts.append(f"  {r}: {_fmt_usd(rd.get('pnl', 0))} ({rd.get('count', 0)} trades)")
+        regime_str = "\n".join(regime_parts[:3]) if regime_parts else ""
 
         if alerts:
             self.send_telegram(
-                f"⚠️ <b>PnL Warning — {target}</b>\n"
-                + "\n".join(alerts)
-                + f"\nPnL: {total_pnl:.2f} | Executors: {total} | DD: {drawdown:.4f}"
+                f"⚠️ <b>PnL Warning — {target}</b> ({period}h)\n"
+                + "\n".join(f"  • {a}" for a in alerts)
+                + f"\nPnL: {_fmt_usd(total_pnl)} | Avg: {_fmt_usd(avg_pnl)}/trade\n"
+                f"Executors: {total} | Max DD: {_fmt_pct(drawdown * 100)}\n"
+                f"Sharpe: {sharpe:.2f} | PF: {pf:.2f} | WR: {win_rate:.1%}"
+                + (f"\n<b>By regime:</b>\n{regime_str}" if regime_str else "")
             )
         else:
+            pnl_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
             self.send_telegram(
-                f"📊 <b>PnL Report — {target}</b>\n"
-                f"Executors: {total} | PnL: {total_pnl:.2f}\n"
-                f"WR: {win_rate:.1%} | Sharpe: {sharpe:.2f} | PF: {data.get('profit_factor', 0):.2f}\n"
+                f"{pnl_emoji} <b>PnL Report — {target}</b> ({period}h)\n"
+                f"PnL: <b>{_fmt_usd(total_pnl)}</b> | Avg: {_fmt_usd(avg_pnl)}/trade\n"
+                f"Executors: {total} | WR: {win_rate:.1%} | Sharpe: {sharpe:.2f}\n"
+                f"PF: {pf:.2f} | Max DD: {_fmt_pct(drawdown * 100)}\n"
                 f"Best: {best} | Worst: {worst}"
+                + (f"\n<b>By regime:</b>\n{regime_str}" if regime_str else "")
             )
 
     def _handle_backtest(self, data, topic):
         if not self.config.alert_on_backtest:
             return
         target = data.get("target", "?")
-        tested = data.get("total_configs_tested", 0)
-        successful = data.get("successful_runs", 0)
+        tested = int(data.get("total_configs_tested", 0))
+        successful = int(data.get("successful_runs", 0))
+        success_rate = (successful / tested * 100) if tested > 0 else 0
         top = data.get("top_config")
 
         if top:
+            params = top.get("params", {})
+            sharpe = float(top.get("sharpe_ratio", 0))
+            pnl = float(top.get("net_pnl", 0))
+            accuracy = float(top.get("accuracy", 0))
             self.send_telegram(
-                f"🧪 <b>Backtest Sweep — {target}</b>\n"
-                f"Tested: {tested} | Successful: {successful}\n"
-                f"<b>Best config:</b>\n"
-                f"Spread: {top.get('params', {}).get('buy_spreads', 'N/A')} | "
-                f"SL: {top.get('params', {}).get('stop_loss', 'N/A')} | "
-                f"TP: {top.get('params', {}).get('take_profit', 'N/A')}\n"
-                f"Sharpe: {top.get('sharpe_ratio', 0):.2f} | PnL: {top.get('net_pnl', 0):.2f} | "
-                f"Accuracy: {top.get('accuracy', 0):.1%}"
+                f"🧪 <b>Backtest — {target}</b>\n"
+                f"Configs: {tested} tested | {successful} profitable ({success_rate:.0f}%)\n"
+                f"<b>Winner:</b>\n"
+                f"  Spreads: {params.get('buy_spreads', '?')} / {params.get('sell_spreads', '?')}\n"
+                f"  SL: {params.get('stop_loss', '?')} | TP: {params.get('take_profit', '?')}\n"
+                f"  PnL: {_fmt_usd(pnl)} | Sharpe: {sharpe:.2f} | Acc: {accuracy:.1%}"
             )
         else:
             self.send_telegram(
-                f"🧪 <b>Backtest Sweep — {target}</b>\n"
-                f"Tested: {tested} | No valid results"
+                f"🧪 <b>Backtest — {target}</b>\n"
+                f"Tested {tested} configs — no profitable results"
             )
 
     def _handle_hedge(self, data, topic):
@@ -188,20 +316,32 @@ class AlertService(BaseService):
         prev = self.state.get(key)
         current = data.get("status")
         order_placed = data.get("order_placed", False)
+        target = data.get("target", topic.split("/")[-1])
+        delta = float(data.get("net_delta", 0))
+        ratio = float(data.get("hedge_ratio", 0))
+        spot = float(data.get("spot_balance", 0))
+        short = float(data.get("perp_short_size", 0))
+        upnl = float(data.get("unrealized_pnl", 0))
+        coverage = (short / spot * 100) if spot > 0 else 0
+        delta_pct = (delta / spot * 100) if spot > 0 else 0
 
         if prev and prev != current:
             self.send_telegram(
-                f"<b>Hedge Status</b>\n"
+                f"🛡️ <b>Hedge Status — {target}</b>\n"
                 f"{prev} → <b>{current}</b>\n"
-                f"Delta: {data.get('net_delta', 0):.4f} | Ratio: {data.get('hedge_ratio', 0):.4f}\n"
-                f"Spot: {data.get('spot_balance', 0):.4f} | Short: {data.get('perp_short_size', 0):.4f}"
+                f"Spot: {spot:.4f} | Short: {short:.4f} ({coverage:.1f}% covered)\n"
+                f"Net delta: {delta:+.4f} ({delta_pct:+.1f}% exposure)\n"
+                f"Hedge ratio: {ratio:.4f} | uPnL: {_fmt_usd(upnl)}"
             )
 
         if order_placed:
+            action = data.get("action", "?")
+            action_emoji = {"INCREASE_SHORT": "📉", "REDUCE_SHORT": "📈"}.get(action, "📋")
             self.send_telegram(
-                f"<b>Hedge Order Placed</b>\n"
-                f"Action: {data.get('action')} | {data.get('target')}\n"
-                f"Delta: {data.get('net_delta', 0):.4f} | PnL: {data.get('unrealized_pnl', 0):.4f}"
+                f"{action_emoji} <b>Hedge Order — {target}</b>\n"
+                f"Action: <b>{action}</b>\n"
+                f"Delta: {delta:+.4f} ({delta_pct:+.1f}%) | uPnL: {_fmt_usd(upnl)}\n"
+                f"Spot: {spot:.4f} → Short: {short:.4f}"
             )
 
         self.state[key] = current
@@ -211,17 +351,25 @@ class AlertService(BaseService):
             return
         active = data.get("active_experiments", [])
         by_status = data.get("by_status", {})
+        by_tier = data.get("by_tier", {})
         killed = by_status.get("KILLED", 0)
+        running = by_status.get("RUNNING", 0)
+        pending = by_status.get("PENDING", 0)
 
         key_killed = f"lab_killed:{topic}"
         prev_killed = self.state.get(key_killed, 0)
 
         if killed > prev_killed:
             new_kills = killed - prev_killed
+            killed_list = [e for e in active if e.get("status") == "KILLED"][-new_kills:]
+            kill_details = "\n".join(
+                f"  • {e.get('pair', '?')} T{e.get('tier', '?')}: {_fmt_usd(e.get('pnl', 0))} ({e.get('days', 0)}d)"
+                for e in killed_list
+            ) if killed_list else ""
             self.send_telegram(
-                f"<b>Experiment Killed</b>\n"
-                f"{new_kills} experiment(s) auto-killed\n"
-                f"Running: {by_status.get('RUNNING', 0)} | Killed: {killed}"
+                f"💀 <b>Experiment Killed</b> ({new_kills} new)\n"
+                f"Pipeline: {running} running | {pending} pending | {killed} killed\n"
+                + (f"<b>Killed:</b>\n{kill_details}" if kill_details else "")
             )
 
         promoted = by_status.get("PROMOTED", 0)
@@ -229,9 +377,15 @@ class AlertService(BaseService):
         prev_promoted = self.state.get(key_promoted, 0)
 
         if promoted > prev_promoted:
+            new_promo = promoted - prev_promoted
+            tier_summary = " | ".join(
+                f"T{t}: {_fmt_usd(td.get('total_pnl', 0))} ({td.get('count', 0)})"
+                for t, td in sorted(by_tier.items())
+            ) if by_tier else ""
             self.send_telegram(
-                f"<b>Experiment Promoted</b>\n"
-                f"Running: {by_status.get('RUNNING', 0)} | Promoted: {promoted}"
+                f"🏆 <b>Experiment Promoted</b> ({new_promo} new)\n"
+                f"Pipeline: {running} running | {promoted} promoted\n"
+                + (f"Tiers: {tier_summary}" if tier_summary else "")
             )
 
         self.state[key_killed] = killed
@@ -245,26 +399,46 @@ class AlertService(BaseService):
             key = f"new_listing:{data.get('pair', topic)}"
             if self.state.get(key):
                 return
+            pair = data.get("pair", "")
+            dex = data.get("dex", "?")
+            age_h = float(data.get("age_hours", 0))
+            liq = float(data.get("liquidity", 0))
+            vol = float(data.get("volume_24h", 0))
+            price = data.get("price", 0)
+            vol_liq = (vol / liq) if liq > 0 else 0
             self.send_telegram(
-                f"<b>New Listing Detected</b>\n"
-                f"Token: <b>{token}</b>\n"
-                f"Age: {data.get('age_hours', 0)}h | Liq: ${data.get('liquidity', 0):,.0f}\n"
-                f"Vol 24H: ${data.get('volume_24h', 0):,.0f} | Price: ${data.get('price', 0)}"
+                f"🆕 <b>New Listing — {token}</b>\n"
+                f"Pair: {pair} on {dex}\n"
+                f"Age: {_fmt_hours(age_h)} | Price: ${price}\n"
+                f"Liquidity: {_fmt_usd(liq)} | Vol 24h: {_fmt_usd(vol)}\n"
+                f"Vol/Liq ratio: {vol_liq:.2f}x"
             )
             self.state[key] = True
         else:
             if not self.config.alert_on_alpha:
                 return
             token = data.get("token", "?")
-            score = data.get("score", 0)
+            score = int(data.get("score", 0))
             key = f"alpha:{data.get('pair', topic)}"
             if self.state.get(key):
                 return
+            pair = data.get("pair", "")
+            dex = data.get("dex", "?")
+            liq = float(data.get("liquidity", 0))
+            vol = float(data.get("volume_24h", 0))
+            mcap = float(data.get("mcap", 0))
+            price = data.get("price", 0)
+            vol_mcap = (vol / mcap) if mcap > 0 else 0
+            breakdown = data.get("breakdown", {})
+            bd_parts = [f"{k}: {v}" for k, v in breakdown.items()] if breakdown else []
             self.send_telegram(
-                f"<b>Alpha Signal</b>\n"
-                f"Token: <b>{token}</b> | Score: {score}/10\n"
-                f"Liq: ${data.get('liquidity', 0):,.0f} | Vol: ${data.get('volume_24h', 0):,.0f}\n"
-                f"MCap: ${data.get('mcap', 0):,.0f} | Price: ${data.get('price', 0)}"
+                f"🎯 <b>Alpha Signal — {token}</b>\n"
+                f"Score: <b>{score}/10</b> {_bar(score)}\n"
+                f"Pair: {pair} on {dex}\n"
+                f"Price: ${price} | MCap: {_fmt_usd(mcap)}\n"
+                f"Liq: {_fmt_usd(liq)} | Vol 24h: {_fmt_usd(vol)}\n"
+                f"Vol/MCap: {vol_mcap:.2f}x"
+                + (f"\n<b>Breakdown:</b> {' | '.join(bd_parts)}" if bd_parts else "")
             )
             self.state[key] = True
 
@@ -279,22 +453,34 @@ class AlertService(BaseService):
         if prev == status:
             return
 
+        unlock_pct = float(data.get("unlock_pct", 0))
+        unlock_amt = data.get("unlock_amount", "?")
+        source = data.get("source", "")
+        buy_mult = float(data.get("buy_spread_mult", 1))
+        sell_mult = float(data.get("sell_spread_mult", 1))
+        buy_adj = (buy_mult - 1) * 100
+        sell_adj = (sell_mult - 1) * 100
+
         if status == "PRE_UNLOCK":
-            hours = data.get("hours_until_unlock", 0)
+            hours = float(data.get("hours_until_unlock", 0))
             self.send_telegram(
-                f"<b>Token Unlock Approaching</b>\n"
-                f"Token: <b>{token}</b> ({pair})\n"
-                f"Unlock in: {hours}h | Size: {data.get('unlock_pct', 0)}%\n"
-                f"Buy spread: x{data.get('buy_spread_mult', 1)} | Sell spread: x{data.get('sell_spread_mult', 1)}"
+                f"🔓 <b>Unlock Approaching — {token}</b>\n"
+                f"Pair: {pair} | Unlock in <b>{_fmt_hours(hours)}</b>\n"
+                f"Size: {unlock_pct}% ({unlock_amt})\n"
+                f"Spread adjustment:\n"
+                f"  Buy: x{buy_mult:.2f} ({buy_adj:+.0f}%) | Sell: x{sell_mult:.2f} ({sell_adj:+.0f}%)\n"
+                f"<i>Expect sell pressure — widening spreads</i>"
+                + (f"\nSource: {source}" if source else "")
             )
         elif status == "POST_UNLOCK":
-            hours = data.get("hours_since_unlock", 0)
+            hours = float(data.get("hours_since_unlock", 0))
             self.send_telegram(
-                f"<b>Post-Unlock Window</b>\n"
-                f"Token: <b>{token}</b> ({pair})\n"
-                f"Unlocked: {hours}h ago | Size: {data.get('unlock_pct', 0)}%\n"
-                f"Mean reversion window active\n"
-                f"Buy spread: x{data.get('buy_spread_mult', 1)} | Sell spread: x{data.get('sell_spread_mult', 1)}"
+                f"🔓 <b>Post-Unlock — {token}</b>\n"
+                f"Pair: {pair} | Unlocked <b>{_fmt_hours(hours)} ago</b>\n"
+                f"Size: {unlock_pct}% ({unlock_amt})\n"
+                f"Spread adjustment:\n"
+                f"  Buy: x{buy_mult:.2f} ({buy_adj:+.0f}%) | Sell: x{sell_mult:.2f} ({sell_adj:+.0f}%)\n"
+                f"<i>Mean reversion window — watching for bounce</i>"
             )
 
         self.state[key] = status
@@ -306,12 +492,25 @@ class AlertService(BaseService):
         key = f"arb:{data.get('buy_dex', '')}:{data.get('sell_dex', '')}:{token}"
         if self.state.get(key):
             return
+        buy_price = float(data.get("buy_price", 0))
+        sell_price = float(data.get("sell_price", 0))
+        spread = float(data.get("spread_pct", 0))
+        max_size = float(data.get("max_size_usd", 0))
+        buy_dex = data.get("buy_dex", "?")
+        sell_dex = data.get("sell_dex", "?")
+        spread_bps = spread * 100
+        est_profit_max = max_size * spread / 100
+        profit_100 = 100 * spread / 100
+        if profit_100 < MIN_PROFIT_100:
+            self.state[key] = True
+            return
         self.send_telegram(
-            f"<b>Arb Opportunity</b>\n"
-            f"Token: <b>{token}</b> | Spread: {data.get('spread_pct', 0)}%\n"
-            f"Buy: {data.get('buy_dex', '?')} @ ${data.get('buy_price', 0)}\n"
-            f"Sell: {data.get('sell_dex', '?')} @ ${data.get('sell_price', 0)}\n"
-            f"Max size: ${data.get('max_size_usd', 0):,.0f}"
+            f"⚡ <b>Arb Opportunity — {token}</b>\n"
+            f"Spread: <b>{_fmt_pct(spread)}</b> ({spread_bps:.0f} bps)\n"
+            f"Buy:  {buy_dex} @ ${buy_price:.6f}\n"
+            f"Sell: {sell_dex} @ ${sell_price:.6f}\n"
+            f"$100 trade → <b>{_fmt_usd(profit_100)} profit</b>\n"
+            f"Max size: {_fmt_usd(max_size)} → {_fmt_usd(est_profit_max)} profit"
         )
         self.state[key] = True
 
@@ -324,11 +523,28 @@ class AlertService(BaseService):
         key = f"fscan:{symbol}:{data.get('signal', '')}"
         if self.state.get(key):
             return
+        rate = float(data.get("funding_rate", 0))
+        apr = float(data.get("annualized_apr", 0))
+        signal = data.get("signal", "?")
+        direction = data.get("direction", "?")
+        next_ts = data.get("next_funding_time", 0)
+        bps = rate * 10000
+        daily_rate = rate * 3 * 100
+        emoji = "🔥" if signal == "EXTREME" else "📈"
+        dir_hint = "Shorts pay → long bias" if direction == "SHORT_PAYS" else "Longs pay → short bias"
+        earn_100_8h = abs(rate) * 100
+        earn_100_day = earn_100_8h * 3
+        earn_100_month = earn_100_day * 30
+        if earn_100_month < MIN_PROFIT_100:
+            self.state[key] = True
+            return
         self.send_telegram(
-            f"<b>Funding Spike</b>\n"
-            f"Symbol: <b>{symbol}</b> | {data.get('signal', '?')}\n"
-            f"Rate: {data.get('funding_rate', 0):.6f} | APR: {data.get('annualized_apr', 0):.1f}%\n"
-            f"Direction: {data.get('direction', '?')}"
+            f"{emoji} <b>Funding Spike — {symbol}</b> [{signal}]\n"
+            f"Rate: {rate:.6f} ({bps:+.1f} bps) | APR: {_fmt_pct(apr, 1)}\n"
+            f"Daily: {_fmt_pct(daily_rate, 3)} | {direction}\n"
+            f"$100 trade → {_fmt_usd(earn_100_8h)}/8h | {_fmt_usd(earn_100_day)}/day | {_fmt_usd(earn_100_month)}/month\n"
+            f"<i>{dir_hint}</i>\n"
+            f"Next funding: {_fmt_ts(next_ts)}"
         )
         self.state[key] = True
 
@@ -340,12 +556,24 @@ class AlertService(BaseService):
         key = f"narr:{category}:{token}"
         if self.state.get(key):
             return
+        keyword = data.get("keyword", "")
+        vol = float(data.get("volume_24h", 0))
+        spike = float(data.get("volume_spike", 0))
+        liq = float(data.get("liquidity", 0))
+        price = data.get("price", 0)
+        p5m = float(data.get("price_change_5m", 0))
+        p1h = float(data.get("price_change_1h", 0))
+        p24h = float(data.get("price_change_24h", 0))
+        vol_liq = (vol / liq) if liq > 0 else 0
+        momentum = "accelerating" if abs(p5m) > abs(p1h / 12) else "decelerating"
+        trend = "bullish" if p5m > 0 and p1h > 0 else "bearish" if p5m < 0 and p1h < 0 else "mixed"
         self.send_telegram(
-            f"<b>Narrative Signal</b>\n"
-            f"[{category}] <b>{token}</b>\n"
-            f"Vol spike: {data.get('volume_spike', 0)}x | Vol: ${data.get('volume_24h', 0):,.0f}\n"
-            f"5m: {data.get('price_change_5m', 0)}% | 1h: {data.get('price_change_1h', 0)}% | 24h: {data.get('price_change_24h', 0)}%\n"
-            f"Liq: ${data.get('liquidity', 0):,.0f}"
+            f"📡 <b>Narrative — {token}</b> [{category}]\n"
+            + (f"Keyword: {keyword}\n" if keyword else "")
+            + f"Vol spike: <b>{spike:.1f}x</b> | Vol: {_fmt_usd(vol)} | Liq: {_fmt_usd(liq)}\n"
+            f"Vol/Liq: {vol_liq:.2f}x | Price: ${price}\n"
+            f"Price: 5m {_sign(p5m)}% | 1h {_sign(p1h)}% | 24h {_sign(p24h)}%\n"
+            f"Momentum: {trend}, {momentum}"
         )
         self.state[key] = True
 
@@ -355,38 +583,80 @@ class AlertService(BaseService):
         if "/deploy/" in topic:
             token = data.get("token", "?")
             status = data.get("status", "?")
+            pair = data.get("pair", "")
+            dex = data.get("dex", "?")
+            capital = float(data.get("capital", 0))
+            entry = float(data.get("entry_price", 0))
+            score = data.get("score", 0)
+            is_live = status == "ACTIVE"
+            tokens_bought = (capital / entry) if entry > 0 else 0
             self.send_telegram(
-                f"<b>Swarm {'Deploy' if status == 'ACTIVE' else 'Recommendation'}</b>\n"
-                f"Token: <b>{token}</b> | Score: {data.get('score', 0)}\n"
-                f"Capital: ${data.get('capital', 0)} @ ${data.get('entry_price', 0)}\n"
-                f"DEX: {data.get('dex', '?')}"
+                f"{'🤖' if is_live else '📋'} <b>Swarm {'Deploy' if is_live else 'Recommendation'} — {token}</b>\n"
+                f"Pair: {pair} on {dex}\n"
+                f"Score: <b>{score}/10</b> {_bar(score)}\n"
+                f"Capital: {_fmt_usd(capital)} @ ${entry:.6f} ({tokens_bought:.2f} tokens)\n"
+                f"$100 at 10% gain → <b>$10 profit</b> | at 20% loss → <b>-$20</b>\n"
+                f"Status: <b>{status}</b>"
             )
         elif "/status" in topic:
-            active = data.get("active_bots", 0)
-            total_pnl = data.get("total_pnl", 0)
-            deployed = data.get("total_capital_deployed", 0)
+            active = int(data.get("active_bots", 0))
+            total = int(data.get("total_bots", 0))
+            total_pnl = float(data.get("total_pnl", 0))
+            deployed = float(data.get("total_capital_deployed", 0))
+            available = float(data.get("available_capital", 0))
             by_status = data.get("by_status", {})
             killed = by_status.get("KILLED", 0)
+            active_list = data.get("active", [])
+
             key_killed = "swarm_killed"
             prev_killed = self.state.get(key_killed, 0)
-            if killed > prev_killed:
+            new_kills = killed - prev_killed
+
+            if new_kills > 0 or (active > 0 and total_pnl != self.state.get("swarm_prev_pnl", total_pnl)):
+                roi = (total_pnl / deployed * 100) if deployed > 0 else 0
+                pnl_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
+                top_bots = sorted(active_list, key=lambda b: b.get("pnl", 0), reverse=True)[:3]
+                bot_lines = "\n".join(
+                    f"  {'🟢' if b.get('pnl', 0) >= 0 else '🔴'} {b.get('token', '?')}: "
+                    f"{_fmt_usd(b.get('pnl', 0))} ({b.get('age_hours', 0):.0f}h)"
+                    for b in top_bots
+                ) if top_bots else ""
                 self.send_telegram(
-                    f"<b>Swarm Update</b>\n"
-                    f"Active: {active} | Deployed: ${deployed:.0f}\n"
-                    f"PnL: ${total_pnl:.2f} | Killed: {killed - prev_killed} new"
+                    f"{pnl_emoji} <b>Swarm Status</b>\n"
+                    f"Bots: {active}/{total} active | Capital: {_fmt_usd(deployed)}/{_fmt_usd(deployed + available)}\n"
+                    f"PnL: <b>{_fmt_usd(total_pnl)}</b> ({roi:+.2f}% ROI)"
+                    + (f" | {new_kills} killed" if new_kills > 0 else "")
+                    + (f"\n<b>Top bots:</b>\n{bot_lines}" if bot_lines else "")
                 )
+
             self.state[key_killed] = killed
+            self.state["swarm_prev_pnl"] = total_pnl
 
     def _handle_clmm(self, data, topic):
         if not self.config.alert_on_clmm:
             return
         if not data.get("should_rebalance"):
             return
+        target = topic.split("/")[-1]
+        price = float(data.get("price", 0))
+        lower = float(data.get("range_lower", 0))
+        upper = float(data.get("range_upper", 0))
+        range_pct = float(data.get("range_pct", 0))
+        util = float(data.get("utilization_pct", 0))
+        regime = data.get("regime", "?")
+        session = data.get("session", "?")
+        natr = float(data.get("natr", 0))
+        range_width = upper - lower
+        mid = (upper + lower) / 2 if (upper + lower) > 0 else 0
+        off_center = ((price - mid) / (range_width / 2) * 100) if range_width > 0 else 0
+        edge = "upper" if price > mid else "lower"
+        dist_to_edge = min(abs(price - lower), abs(price - upper))
         self.send_telegram(
-            f"<b>CLMM Rebalance</b>\n"
-            f"Range: ${data.get('range_lower', 0):.2f} - ${data.get('range_upper', 0):.2f} ({data.get('range_pct', 0)}%)\n"
-            f"Price: ${data.get('price', 0):.2f} | Util: {data.get('utilization_pct', 0)}%\n"
-            f"Regime: {data.get('regime', '?')} | Session: {data.get('session', '?')}"
+            f"🔄 <b>CLMM Rebalance — {target}</b>\n"
+            f"Price: ${price:.4f} ({off_center:+.0f}% from center, near {edge})\n"
+            f"Range: ${lower:.4f} — ${upper:.4f} ({_fmt_pct(range_pct)} width)\n"
+            f"Dist to edge: ${dist_to_edge:.4f} | Utilization: {_fmt_pct(util)}\n"
+            f"Regime: {regime} | Session: {session} | NATR: {natr * 100:.2f}%"
         )
 
     def _handle_migration(self, data, topic):
@@ -397,11 +667,21 @@ class AlertService(BaseService):
             key = f"new_pool:{data.get('pair', topic)}"
             if self.state.get(key):
                 return
+            pair = data.get("pair", "?")
+            dex = data.get("dex", "?")
+            liq = float(data.get("liquidity", 0))
+            vol = float(data.get("volume_24h", 0))
+            price = data.get("price", 0)
+            age_min = float(data.get("age_minutes", 0))
+            vol_liq = (vol / liq) if liq > 0 else 0
+            addr = data.get("address", "")
+            addr_short = f"{addr[:6]}...{addr[-4:]}" if len(addr) > 10 else addr
             self.send_telegram(
-                f"<b>New Pool Detected</b>\n"
-                f"Token: <b>{token}</b> on {data.get('dex', '?')}\n"
-                f"Age: {data.get('age_minutes', 0)} min | Liq: ${data.get('liquidity', 0):,.0f}\n"
-                f"Vol: ${data.get('volume_24h', 0):,.0f} | Price: ${data.get('price', 0)}"
+                f"🏊 <b>New Pool — {token}</b>\n"
+                f"Pair: {pair} on <b>{dex}</b>\n"
+                f"Age: {age_min:.0f} min | Price: ${price}\n"
+                f"Liq: {_fmt_usd(liq)} | Vol 24h: {_fmt_usd(vol)}\n"
+                f"Vol/Liq: {vol_liq:.2f}x | Addr: <code>{addr_short}</code>"
             )
             self.state[key] = True
         elif "/event/" in topic:
@@ -409,33 +689,120 @@ class AlertService(BaseService):
             key = f"event:{token}:{status}"
             if self.state.get(key) == status:
                 return
+            event_type = data.get("event_type", "?")
+            hours = float(data.get("hours", 0))
+            desc = data.get("description", "")
+            source = data.get("source", "")
+            pair = data.get("pair", "")
+            is_upcoming = status == "ACTIVE"
+            emoji = "⏳" if is_upcoming else "✅"
+            timing = f"In {_fmt_hours(hours)}" if is_upcoming else f"{_fmt_hours(hours)} ago"
             self.send_telegram(
-                f"<b>Migration/Airdrop {status}</b>\n"
-                f"Token: <b>{token}</b> | Type: {data.get('event_type', '?')}\n"
-                f"{'In' if status == 'ACTIVE' else ''} {data.get('hours', 0)}h {'until' if status == 'ACTIVE' else 'ago'}\n"
-                f"{data.get('description', '')}"
+                f"{emoji} <b>{event_type} — {token}</b> [{status}]\n"
+                + (f"Pair: {pair}\n" if pair else "")
+                + f"Timing: {timing}\n"
+                + (f"{desc}\n" if desc else "")
+                + (f"Source: {source}" if source else "")
             )
             self.state[key] = status
+
+    def _handle_watchlist(self, data, topic):
+        if not self.config.alert_on_watchlist:
+            return
+        sym = data.get("symbol", data.get("token", "?"))
+        parts = topic.split("/")
+        entry_type = parts[-2] if len(parts) >= 2 else "?"
+        type_labels = {"arb": "Arb Tokens", "rewards": "LP Pools", "funding": "Funding Symbols"}
+        type_label = type_labels.get(entry_type, entry_type)
+
+        if "/added/" in topic:
+            source = data.get("source", "?")
+            source_labels = {
+                "alpha": "Alpha signal", "narrative": "Narrative signal",
+                "dex_boost": "DexScreener boost", "dex_profile": "DexScreener profile",
+            }
+            source_label = source_labels.get(source, source)
+            addr = data.get("address", "")
+            addr_short = f"<code>{addr[:6]}...{addr[-4:]}</code>" if len(addr) > 10 else ""
+            extras = []
+            if data.get("pair"):
+                extras.append(f"Pair: {data['pair']}")
+            if data.get("dex"):
+                extras.append(f"DEX: {data['dex']}")
+            self.send_telegram(
+                f"➕ <b>Watchlist Add — {sym}</b>\n"
+                f"List: {type_label} | Source: {source_label}\n"
+                + (f"{' | '.join(extras)}\n" if extras else "")
+                + (f"Address: {addr_short}" if addr_short else "")
+            )
+        elif "/removed/" in topic:
+            stale_cycles = data.get("consecutive_stale_cycles", 0)
+            self.send_telegram(
+                f"➖ <b>Watchlist Remove — {sym}</b>\n"
+                f"List: {type_label} | Reason: stale ({stale_cycles} cycles)\n"
+                f"<i>Below volume + liquidity thresholds</i>"
+            )
 
     def _handle_rewards(self, data, topic):
         if not self.config.alert_on_rewards:
             return
         if "/summary" in topic:
             top = data.get("top_pools", [])
+            top = [p for p in top if 100 * float(p.get("effective_apr", 0)) / 100 / 365 * 30 >= MIN_PROFIT_100]
             if not top:
                 return
-            lines = [f"<b>Top LP Rewards</b>"]
-            for p in top[:3]:
-                lines.append(
-                    f"  {p.get('pair', '?')} ({p.get('dex', '?')}): "
-                    f"{p.get('effective_apr', 0)}% APR "
-                    f"(risk-adj: {p.get('risk_adjusted_apr', 0)}%)"
-                )
             key = f"rewards_top:{top[0].get('pair', '')}"
             if self.state.get(key):
                 return
+            lines = [f"🏆 <b>Top LP Rewards</b> ({len(top)} pools)"]
+            for i, p in enumerate(top[:5], 1):
+                eff = float(p.get("effective_apr", 0))
+                risk_adj = float(p.get("risk_adjusted_apr", 0))
+                risk = p.get("risk_score", "?")
+                liq = float(p.get("liquidity", 0))
+                vol = float(p.get("volume_24h", 0))
+                earn_100_day = 100 * eff / 100 / 365
+                earn_100_month = earn_100_day * 30
+                medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"{i}.")
+                lines.append(
+                    f"{medal} <b>{p.get('pair', '?')}</b> ({p.get('dex', '?')})\n"
+                    f"   APR: {_fmt_pct(eff)} (risk-adj: {_fmt_pct(risk_adj)}) | Risk: {risk}/10\n"
+                    f"   $100 LP → {_fmt_usd(earn_100_day)}/day | {_fmt_usd(earn_100_month)}/month\n"
+                    f"   Liq: {_fmt_usd(liq)} | Vol: {_fmt_usd(vol)}"
+                )
             self.send_telegram("\n".join(lines))
             self.state[key] = True
+        else:
+            token = data.get("token", "?")
+            key = f"rewards_pool:{token}"
+            prev_apr = self.state.get(key, 0)
+            eff_apr = float(data.get("effective_apr", 0))
+            if abs(eff_apr - prev_apr) < 5:
+                self.state[key] = eff_apr
+                return
+            fee_apr = float(data.get("fee_apr", 0))
+            reward_apr = float(data.get("reward_apr", 0))
+            risk_adj = float(data.get("risk_adjusted_apr", 0))
+            risk = data.get("risk_score", "?")
+            liq = float(data.get("liquidity", 0))
+            vol = float(data.get("volume_24h", 0))
+            pair = data.get("pair", "?")
+            dex = data.get("dex", "?")
+            reward_token = data.get("reward_token", "?")
+            apr_dir = "📈" if eff_apr > prev_apr else "📉"
+            earn_100_day = 100 * eff_apr / 100 / 365
+            earn_100_month = earn_100_day * 30
+            if earn_100_month < MIN_PROFIT_100:
+                self.state[key] = eff_apr
+                return
+            self.send_telegram(
+                f"{apr_dir} <b>LP Reward — {pair}</b> ({dex})\n"
+                f"Effective APR: <b>{_fmt_pct(eff_apr)}</b> (risk-adj: {_fmt_pct(risk_adj)})\n"
+                f"  Fee APR: {_fmt_pct(fee_apr)} | Reward APR: {_fmt_pct(reward_apr)} ({reward_token})\n"
+                f"$100 LP → {_fmt_usd(earn_100_day)}/day | {_fmt_usd(earn_100_month)}/month\n"
+                f"Liq: {_fmt_usd(liq)} | Vol: {_fmt_usd(vol)} | Risk: {risk}/10"
+            )
+            self.state[key] = eff_apr
 
     def _on_message(self, client, userdata, msg):
         try:
@@ -460,6 +827,8 @@ class AlertService(BaseService):
                 self._handle_backtest(data, topic)
             elif "/hedge/" in topic:
                 self._handle_hedge(data, topic)
+            elif "/watchlist/" in topic:
+                self._handle_watchlist(data, topic)
             elif "/clmm/" in topic:
                 self._handle_clmm(data, topic)
             elif "/alpha/" in topic:

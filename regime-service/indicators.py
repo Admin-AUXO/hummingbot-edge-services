@@ -8,9 +8,9 @@ def calc_natr(df, period=14):
 
 def calc_bb_width(df, period=20, std=2.0):
     bb = ta.bbands(df["close"], length=period, std=std)
-    upper = bb[f"BBU_{period}_{std}"]
-    lower = bb[f"BBL_{period}_{std}"]
-    mid = bb[f"BBM_{period}_{std}"]
+    upper = bb[[c for c in bb.columns if c.startswith("BBU")][0]]
+    lower = bb[[c for c in bb.columns if c.startswith("BBL")][0]]
+    mid = bb[[c for c in bb.columns if c.startswith("BBM")][0]]
     return (upper - lower) / mid
 
 

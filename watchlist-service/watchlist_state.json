@@ -1,0 +1,148 @@
+{
+  "arb_tokens": [
+    {
+      "symbol": "SOL",
+      "address": "So11111111111111111111111111111111111111112",
+      "added_at": 1772487165.9690921,
+      "source": "static",
+      "last_active_at": 1772487165.9690933,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "JUP",
+      "address": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      "added_at": 1772487165.9690974,
+      "source": "static",
+      "last_active_at": 1772487165.9690988,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "JTO",
+      "address": "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",
+      "added_at": 1772487165.9691002,
+      "source": "static",
+      "last_active_at": 1772487165.9691007,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "WIF",
+      "address": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+      "added_at": 1772487165.969102,
+      "source": "static",
+      "last_active_at": 1772487165.9691021,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "PYTH",
+      "address": "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3",
+      "added_at": 1772487165.9691026,
+      "source": "static",
+      "last_active_at": 1772487165.969103,
+      "consecutive_stale_cycles": 0
+    }
+  ],
+  "rewards_pools": [
+    {
+      "token": "SOL",
+      "pair": "SOL/USDC",
+      "dex": "raydium",
+      "address": "So11111111111111111111111111111111111111112",
+      "reward_token": "RAY",
+      "reward_apr": 15.0,
+      "fee_tier": 0.25,
+      "risk_score": 2,
+      "notes": "Core pair, high volume",
+      "added_at": 1772487165.9692757,
+      "source": "static",
+      "last_active_at": 1772487165.969277,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "token": "JUP",
+      "pair": "JUP/USDC",
+      "dex": "meteora",
+      "address": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      "reward_token": "MET",
+      "reward_apr": 25.0,
+      "fee_tier": 0.3,
+      "risk_score": 4,
+      "notes": "Incentivized DLMM pool",
+      "added_at": 1772487165.9692793,
+      "source": "static",
+      "last_active_at": 1772487165.9692798,
+      "consecutive_stale_cycles": 0
+    }
+  ],
+  "funding_symbols": [
+    {
+      "symbol": "SOLUSDT",
+      "added_at": 1772487165.969435,
+      "source": "static",
+      "last_active_at": 1772487165.969436,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "WIFUSDT",
+      "added_at": 1772487165.9694376,
+      "source": "static",
+      "last_active_at": 1772487165.9694383,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "JUPUSDT",
+      "added_at": 1772487165.9694388,
+      "source": "static",
+      "last_active_at": 1772487165.969439,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "JTOUSDT",
+      "added_at": 1772487165.9694395,
+      "source": "static",
+      "last_active_at": 1772487165.9694395,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "PYTHUSDT",
+      "added_at": 1772487165.96944,
+      "source": "static",
+      "last_active_at": 1772487165.9694402,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "WUSDT",
+      "added_at": 1772487165.9694407,
+      "source": "static",
+      "last_active_at": 1772487165.969441,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "RNDRUSDT",
+      "added_at": 1772487165.9694412,
+      "source": "static",
+      "last_active_at": 1772487165.9694417,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "BONKUSDT",
+      "added_at": 1772487165.9694421,
+      "source": "static",
+      "last_active_at": 1772487165.9694424,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "RAYUSDT",
+      "added_at": 1772487165.9694426,
+      "source": "static",
+      "last_active_at": 1772487165.9694428,
+      "consecutive_stale_cycles": 0
+    },
+    {
+      "symbol": "ONSUSDT",
+      "added_at": 1772487165.9694433,
+      "source": "static",
+      "last_active_at": 1772487165.9694433,
+      "consecutive_stale_cycles": 0
+    }
+  ]
+}
