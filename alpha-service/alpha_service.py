@@ -38,17 +38,34 @@ class AlphaService(BaseService):
         now = time.time()
         if now - self._last_strict_fetch < 3600 and self._strict_list:
             return self._strict_list
-            
-        try:
-            resp = self.session.get("https://token.jup.ag/strict", timeout=15)
-            resp.raise_for_status()
-            data = resp.json()
-            self._strict_list = {t.get("address") for t in data if isinstance(t, dict)}
-            self._last_strict_fetch = now
-            return self._strict_list
-        except Exception as e:
-            self.logger.error(f"Jupiter Strict fetch failed (using cache): {e}")
-            return self._strict_list
+
+        urls = [
+            "https://tokens.jup.ag/tokens?tags=strict",
+            "https://token.jup.ag/strict"
+        ]
+        
+        for url in urls:
+            try:
+                resp = self.session.get(url, timeout=15)
+                resp.raise_for_status()
+                data = resp.json()
+                
+                # Jupiter tokens API returns a list of objects
+                addrs = set()
+                for item in data:
+                    if isinstance(item, dict):
+                        addr = item.get("address") or item.get("mint")
+                        if addr: addrs.add(addr)
+                
+                if addrs:
+                    self._strict_list = addrs
+                    self._last_strict_fetch = now
+                    self.logger.info(f"Updated strict list ({len(addrs)} tokens) from {url}")
+                    return self._strict_list
+            except Exception as e:
+                self.logger.error(f"Jupiter fetch failed from {url}: {e}")
+
+        return self._strict_list
 
     def _cap_seen(self):
         self.seen_signals.clear_expired()

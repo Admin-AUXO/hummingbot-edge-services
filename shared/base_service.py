@@ -19,6 +19,7 @@ class BaseService:
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
         self.logger = logging.getLogger(self.name)
         self.session = requests.Session()
+        self.session.auth = (self.config.api_username, self.config.api_password)
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
 

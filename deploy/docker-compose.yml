@@ -20,6 +20,9 @@ x-edge-service: &edge-defaults
   restart: unless-stopped
   networks:
     - hbot-net
+  dns:
+    - 8.8.8.8
+    - 1.1.1.1
   logging:
     driver: "json-file"
     options:
@@ -341,6 +344,8 @@ services:
       INV_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       INV_TARGET_PAIR: ${INV_TARGET_PAIR:-sol_usdc}
       INV_API_BASE_URL: http://hummingbot-api:8000
+      INV_API_USERNAME: ${API_USERNAME:-admin}
+      INV_API_PASSWORD: ${API_PASSWORD:-admin}
     depends_on:
       emqx:
         condition: service_healthy
@@ -359,6 +364,8 @@ services:
       HEDGE_TARGET_PAIR: ${HEDGE_TARGET_PAIR:-sol_usdc}
       HEDGE_DELTA_THRESHOLD: ${HEDGE_DELTA_THRESHOLD:-0.5}
       HEDGE_API_BASE_URL: http://hummingbot-api:8000
+      HEDGE_API_USERNAME: ${API_USERNAME:-admin}
+      HEDGE_API_PASSWORD: ${API_PASSWORD:-admin}
     depends_on:
       emqx:
         condition: service_healthy
@@ -377,6 +384,8 @@ services:
       PNL_TARGET_PAIR: ${PNL_TARGET_PAIR:-sol_usdc}
       PNL_POLL_INTERVAL_SECONDS: ${PNL_POLL_INTERVAL_SECONDS:-300}
       PNL_API_BASE_URL: http://hummingbot-api:8000
+      PNL_API_USERNAME: ${API_USERNAME:-admin}
+      PNL_API_PASSWORD: ${API_PASSWORD:-admin}
     depends_on:
       emqx:
         condition: service_healthy
@@ -496,6 +505,8 @@ services:
       BT_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
       BT_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       BT_API_BASE_URL: http://hummingbot-api:8000
+      BT_API_USERNAME: ${API_USERNAME:-admin}
+      BT_API_PASSWORD: ${API_PASSWORD:-admin}
     depends_on:
       emqx:
         condition: service_healthy

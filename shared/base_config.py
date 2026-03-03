@@ -6,3 +6,5 @@ class BaseServiceConfig(BaseSettings):
     mqtt_port: int = 1883
     mqtt_username: str = "admin"
     mqtt_password: str = "password"
+    api_username: str = "admin"
+    api_password: str = "admin"
