@@ -4,7 +4,7 @@
 #
 # Deploy via Hostinger Docker Manager → "Compose from URL":
 #   Paste this file's raw GitHub URL, e.g.
-#   https://raw.githubusercontent.com/<user>/<repo>/main/deploy/docker-compose.yml
+#   https://raw.githubusercontent.com/<user>/<repo>/master/deploy/docker-compose.yml
 #
 # Or deploy manually via SSH:
 #   cd ~/Trading/deploy
@@ -178,6 +178,7 @@ services:
 
   # ═════════════════════════════════════════════════════════════════════════════
   # TIER 1 — Independent scanners (MQTT + public APIs only)
+  # Each service reads <PREFIX>_MQTT_HOST, <PREFIX>_MQTT_PORT, etc.
   # ═════════════════════════════════════════════════════════════════════════════
 
   edge-session:
@@ -185,10 +186,10 @@ services:
     container_name: edge-session
     environment:
       SERVICE_NAME: session
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      SESSION_MQTT_HOST: emqx
+      SESSION_MQTT_PORT: "1883"
+      SESSION_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      SESSION_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       SESSION_TARGET_PAIR: ${SESSION_TARGET_PAIR:-sol_usdc}
       SESSION_POLL_INTERVAL_SECONDS: ${SESSION_POLL_INTERVAL_SECONDS:-60}
     depends_on:
@@ -200,10 +201,10 @@ services:
     container_name: edge-regime
     environment:
       SERVICE_NAME: regime
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      REGIME_MQTT_HOST: emqx
+      REGIME_MQTT_PORT: "1883"
+      REGIME_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      REGIME_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       REGIME_SYMBOL: ${REGIME_SYMBOL:-SOLUSDT}
       REGIME_POLL_INTERVAL_SECONDS: ${REGIME_POLL_INTERVAL_SECONDS:-300}
     depends_on:
@@ -215,10 +216,10 @@ services:
     container_name: edge-funding
     environment:
       SERVICE_NAME: funding
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      FUNDING_MQTT_HOST: emqx
+      FUNDING_MQTT_PORT: "1883"
+      FUNDING_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      FUNDING_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       FUNDING_SYMBOL: ${FUNDING_SYMBOL:-SOLUSDT}
       FUNDING_POLL_INTERVAL_SECONDS: ${FUNDING_POLL_INTERVAL_SECONDS:-300}
     depends_on:
@@ -230,10 +231,10 @@ services:
     container_name: edge-correlation
     environment:
       SERVICE_NAME: correlation
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      CORR_MQTT_HOST: emqx
+      CORR_MQTT_PORT: "1883"
+      CORR_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      CORR_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       CORR_TARGET_PAIR: ${CORR_TARGET_PAIR:-sol_usdc}
       CORR_REFERENCE_PAIRS: ${CORR_REFERENCE_PAIRS:-ETHUSDT,BTCUSDT}
     depends_on:
@@ -245,10 +246,10 @@ services:
     container_name: edge-alpha
     environment:
       SERVICE_NAME: alpha
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      ALPHA_MQTT_HOST: emqx
+      ALPHA_MQTT_PORT: "1883"
+      ALPHA_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      ALPHA_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       ALPHA_MIN_SCORE: ${ALPHA_MIN_SCORE:-7}
       ALPHA_MIN_LIQUIDITY: ${ALPHA_MIN_LIQUIDITY:-50000}
       ALPHA_POLL_INTERVAL_SECONDS: ${ALPHA_POLL_INTERVAL_SECONDS:-900}
@@ -261,10 +262,10 @@ services:
     container_name: edge-arb
     environment:
       SERVICE_NAME: arb
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      ARB_MQTT_HOST: emqx
+      ARB_MQTT_PORT: "1883"
+      ARB_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      ARB_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       ARB_MIN_ARB_PCT: ${ARB_MIN_ARB_PCT:-0.5}
       ARB_MIN_LIQUIDITY: ${ARB_MIN_LIQUIDITY:-5000}
     depends_on:
@@ -276,10 +277,10 @@ services:
     container_name: edge-funding-scanner
     environment:
       SERVICE_NAME: funding-scanner
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      FSCAN_MQTT_HOST: emqx
+      FSCAN_MQTT_PORT: "1883"
+      FSCAN_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      FSCAN_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       FSCAN_HIGH_RATE_THRESHOLD: ${FSCAN_HIGH_RATE_THRESHOLD:-0.0003}
       FSCAN_MIN_ANNUALIZED_APR: ${FSCAN_MIN_ANNUALIZED_APR:-30}
     depends_on:
@@ -291,10 +292,10 @@ services:
     container_name: edge-narrative
     environment:
       SERVICE_NAME: narrative
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      NARR_MQTT_HOST: emqx
+      NARR_MQTT_PORT: "1883"
+      NARR_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      NARR_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       NARR_MIN_VOLUME_SPIKE: ${NARR_MIN_VOLUME_SPIKE:-2.0}
       NARR_MIN_VOLUME_24H: ${NARR_MIN_VOLUME_24H:-50000}
     depends_on:
@@ -306,10 +307,10 @@ services:
     container_name: edge-rewards
     environment:
       SERVICE_NAME: rewards
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      REWARDS_MQTT_HOST: emqx
+      REWARDS_MQTT_PORT: "1883"
+      REWARDS_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      REWARDS_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       REWARDS_MIN_EFFECTIVE_APR: ${REWARDS_MIN_EFFECTIVE_APR:-20}
       REWARDS_MAX_RISK_SCORE: ${REWARDS_MAX_RISK_SCORE:-8}
     depends_on:
@@ -325,10 +326,10 @@ services:
     container_name: edge-inventory
     environment:
       SERVICE_NAME: inventory
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      INV_MQTT_HOST: emqx
+      INV_MQTT_PORT: "1883"
+      INV_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      INV_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       INV_TARGET_PAIR: ${INV_TARGET_PAIR:-sol_usdc}
       INV_API_BASE_URL: http://hbot-api:8000
     depends_on:
@@ -342,10 +343,10 @@ services:
     container_name: edge-hedge
     environment:
       SERVICE_NAME: hedge
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      HEDGE_MQTT_HOST: emqx
+      HEDGE_MQTT_PORT: "1883"
+      HEDGE_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      HEDGE_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       HEDGE_TARGET_PAIR: ${HEDGE_TARGET_PAIR:-sol_usdc}
       HEDGE_DELTA_THRESHOLD: ${HEDGE_DELTA_THRESHOLD:-0.5}
       HEDGE_API_BASE_URL: http://hbot-api:8000
@@ -360,10 +361,10 @@ services:
     container_name: edge-pnl
     environment:
       SERVICE_NAME: pnl
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      PNL_MQTT_HOST: emqx
+      PNL_MQTT_PORT: "1883"
+      PNL_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      PNL_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       PNL_TARGET_PAIR: ${PNL_TARGET_PAIR:-sol_usdc}
       PNL_POLL_INTERVAL_SECONDS: ${PNL_POLL_INTERVAL_SECONDS:-300}
       PNL_API_BASE_URL: http://hbot-api:8000
@@ -382,10 +383,10 @@ services:
     container_name: edge-lab
     environment:
       SERVICE_NAME: lab
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      LAB_MQTT_HOST: emqx
+      LAB_MQTT_PORT: "1883"
+      LAB_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      LAB_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       LAB_EVAL_INTERVAL_SECONDS: ${LAB_EVAL_INTERVAL_SECONDS:-300}
     depends_on:
       emqx:
@@ -396,10 +397,10 @@ services:
     container_name: edge-alert
     environment:
       SERVICE_NAME: alert
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      ALERT_MQTT_HOST: emqx
+      ALERT_MQTT_PORT: "1883"
+      ALERT_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      ALERT_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       ALERT_TELEGRAM_BOT_TOKEN: ${ALERT_TELEGRAM_BOT_TOKEN:-}
       ALERT_TELEGRAM_CHAT_ID: ${ALERT_TELEGRAM_CHAT_ID:-}
     depends_on:
@@ -411,10 +412,10 @@ services:
     container_name: edge-swarm
     environment:
       SERVICE_NAME: swarm
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      SWARM_MQTT_HOST: emqx
+      SWARM_MQTT_PORT: "1883"
+      SWARM_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      SWARM_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       SWARM_MAX_ACTIVE_BOTS: ${SWARM_MAX_ACTIVE_BOTS:-50}
       SWARM_CAPITAL_PER_BOT: ${SWARM_CAPITAL_PER_BOT:-10}
       SWARM_AUTO_DEPLOY: ${SWARM_AUTO_DEPLOY:-false}
@@ -427,10 +428,10 @@ services:
     container_name: edge-clmm
     environment:
       SERVICE_NAME: clmm
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      CLMM_MQTT_HOST: emqx
+      CLMM_MQTT_PORT: "1883"
+      CLMM_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      CLMM_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       CLMM_TARGET_PAIR: ${CLMM_TARGET_PAIR:-sol_usdc}
       CLMM_BASE_RANGE_PCT: ${CLMM_BASE_RANGE_PCT:-2.0}
       CLMM_REBALANCE_THRESHOLD_PCT: ${CLMM_REBALANCE_THRESHOLD_PCT:-70}
@@ -443,10 +444,10 @@ services:
     container_name: edge-watchlist
     environment:
       SERVICE_NAME: watchlist
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      WL_MQTT_HOST: emqx
+      WL_MQTT_PORT: "1883"
+      WL_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      WL_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       WL_EVAL_INTERVAL_SECONDS: ${WL_EVAL_INTERVAL_SECONDS:-300}
       WL_MAX_ARB_TOKENS: ${WL_MAX_ARB_TOKENS:-40}
       WL_MAX_REWARDS_POOLS: ${WL_MAX_REWARDS_POOLS:-20}
@@ -465,10 +466,10 @@ services:
     profiles: ["tier4"]
     environment:
       SERVICE_NAME: unlock
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      UNLOCK_MQTT_HOST: emqx
+      UNLOCK_MQTT_PORT: "1883"
+      UNLOCK_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      UNLOCK_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       UNLOCK_PRE_UNLOCK_HOURS: ${UNLOCK_PRE_UNLOCK_HOURS:-24}
       UNLOCK_POST_UNLOCK_HOURS: ${UNLOCK_POST_UNLOCK_HOURS:-48}
     depends_on:
@@ -481,10 +482,10 @@ services:
     profiles: ["tier4"]
     environment:
       SERVICE_NAME: backtest
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      BT_MQTT_HOST: emqx
+      BT_MQTT_PORT: "1883"
+      BT_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      BT_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       BT_API_BASE_URL: http://hbot-api:8000
     depends_on:
       emqx:
@@ -496,10 +497,10 @@ services:
     profiles: ["tier4"]
     environment:
       SERVICE_NAME: migration
-      MQTT_HOST: emqx
-      MQTT_PORT: "1883"
-      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
-      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      MIG_MQTT_HOST: emqx
+      MIG_MQTT_PORT: "1883"
+      MIG_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MIG_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       MIG_NEW_POOL_MAX_AGE_MINUTES: ${MIG_NEW_POOL_MAX_AGE_MINUTES:-60}
     depends_on:
       emqx:
