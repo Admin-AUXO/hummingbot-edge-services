@@ -4,13 +4,14 @@ Setup guide for the full stack: Docker infrastructure, edge services, alerts, an
 
 ## Prerequisites
 
-| Requirement | Purpose |
-|---|---|
+| Requirement                 | Purpose                   |
+| --------------------------- | ------------------------- |
 | Docker Desktop (Compose v2) | Infrastructure containers |
-| Python 3.10+ | Edge services |
-| Git | Version control |
+| Python 3.10+                | Edge services             |
+| Git                         | Version control           |
 
 **Optional (live trading):**
+
 - Solana wallet (Phantom) with SOL + USDC
 - Hyperliquid account (delta-neutral hedging)
 - Telegram bot via @BotFather (alerts)
@@ -35,13 +36,14 @@ cd A:\Trading\hummingbot-api
 docker compose up -d
 ```
 
-| Container | Service | Port |
-|---|---|---|
-| `hummingbot-broker` | EMQX (MQTT) | 1883, 18083 (dashboard) |
-| `hummingbot-postgres` | PostgreSQL | 5432 |
-| `hummingbot-api` | FastAPI | 8000 |
+| Container             | Service     | Port                    |
+| --------------------- | ----------- | ----------------------- |
+| `hummingbot-broker`   | EMQX (MQTT) | 1883, 18083 (dashboard) |
+| `hummingbot-postgres` | PostgreSQL  | 5432                    |
+| `hummingbot-api`      | FastAPI     | 8000                    |
 
 **Verify:**
+
 - API docs: http://localhost:8000/docs
 - EMQX dashboard: http://localhost:18083 (admin / public)
 
@@ -75,43 +77,43 @@ Override any setting via environment variables using each service's prefix:
 
 ### Tier 1 — Independent (MQTT + public APIs only)
 
-| Service | Prefix | Key Variables | External API |
-|---|---|---|---|
-| session | `SESSION_` | `TARGET_PAIR` (sol_usdc), `POLL_INTERVAL_SECONDS` (60) | None (UTC clock) |
-| regime | `REGIME_` | `SYMBOL` (SOLUSDT), `POLL_INTERVAL_SECONDS` (300) | Binance |
-| funding | `FUNDING_` | `SYMBOL` (SOLUSDT), `POLL_INTERVAL_SECONDS` (300) | Binance Futures |
-| correlation | `CORR_` | `TARGET_PAIR`, `REFERENCE_PAIRS` (ETHUSDT,BTCUSDT) | Binance |
-| alpha | `ALPHA_` | `MIN_SCORE` (7), `MIN_LIQUIDITY` (50000), `POLL_INTERVAL_SECONDS` (900) | DexScreener |
-| arb | `ARB_` | `MIN_ARB_PCT` (0.5), `MIN_LIQUIDITY` (5000), `TOKENS_FILE` (./tokens.json) | DexScreener |
-| funding-scanner | `FSCAN_` | `HIGH_RATE_THRESHOLD` (0.0003), `SYMBOLS_FILE` (./symbols.json), `MIN_ANNUALIZED_APR` (30) | Binance Futures |
-| narrative | `NARR_` | `MIN_VOLUME_SPIKE` (2.0), `MIN_VOLUME_24H` (50000), `NARRATIVES_FILE` | DexScreener |
-| rewards | `REWARDS_` | `MIN_EFFECTIVE_APR` (20), `POOLS_FILE` (./pools.json), `MAX_RISK_SCORE` (8) | DexScreener |
+| Service         | Prefix     | Key Variables                                                                                                          | External API                   |
+| --------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| session         | `SESSION_` | `TARGET_PAIR` (sol_usdc), `POLL_INTERVAL_SECONDS` (60)                                                                 | None (UTC clock)               |
+| regime          | `REGIME_`  | `SYMBOL` (SOLUSDT), `POLL_INTERVAL_SECONDS` (300)                                                                      | Binance                        |
+| funding         | `FUNDING_` | `SYMBOL` (SOLUSDT), `POLL_INTERVAL_SECONDS` (300)                                                                      | Binance Futures                |
+| correlation     | `CORR_`    | `TARGET_PAIR`, `REFERENCE_PAIRS` (ETHUSDT,BTCUSDT)                                                                     | Binance                        |
+| alpha           | `ALPHA_`   | `MIN_SCORE` (7), `MIN_LIQUIDITY` (50000), `POLL_INTERVAL_SECONDS` (900)                                                | DexScreener                    |
+| arb             | `ARB_`     | `MIN_ARB_PCT` (5.3), `MIN_LIQUIDITY` (10000), `TOKENS_FILE` (./tokens.json)                                            | DexScreener (+ auto-discovery) |
+| funding-scanner | `FSCAN_`   | `HIGH_RATE_THRESHOLD` (0.0003), `SYMBOLS_FILE` (./symbols.json), `MIN_ANNUALIZED_APR` (30), `AUTO_DISCOVER_ALL` (true) | Binance Futures (all perps)    |
+| narrative       | `NARR_`    | `MIN_VOLUME_SPIKE` (2.0), `MIN_VOLUME_24H` (50000), `NARRATIVES_FILE`                                                  | DexScreener                    |
+| rewards         | `REWARDS_` | `MIN_EFFECTIVE_APR` (20), `POOLS_FILE` (./pools.json), `MAX_RISK_SCORE` (8)                                            | DexScreener                    |
 
 ### Tier 2 — Needs Hummingbot API
 
-| Service | Prefix | Key Variables |
-|---|---|---|
-| inventory | `INV_` | `TARGET_PAIR`, `API_BASE_URL` (http://localhost:8000) |
-| hedge | `HEDGE_` | `TARGET_PAIR`, `DELTA_THRESHOLD` (0.5), `API_BASE_URL` |
-| pnl | `PNL_` | `TARGET_PAIR`, `API_BASE_URL`, `POLL_INTERVAL_SECONDS` (300) |
+| Service   | Prefix   | Key Variables                                                |
+| --------- | -------- | ------------------------------------------------------------ |
+| inventory | `INV_`   | `TARGET_PAIR`, `API_BASE_URL` (http://localhost:8000)        |
+| hedge     | `HEDGE_` | `TARGET_PAIR`, `DELTA_THRESHOLD` (0.5), `API_BASE_URL`       |
+| pnl       | `PNL_`   | `TARGET_PAIR`, `API_BASE_URL`, `POLL_INTERVAL_SECONDS` (300) |
 
 ### Tier 3 — Consumes MQTT signals
 
-| Service | Prefix | Key Variables |
-|---|---|---|
-| lab | `LAB_` | `DATA_FILE` (./experiments.json), `EVAL_INTERVAL_SECONDS` (300) |
-| alert | `ALERT_` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, per-signal toggles |
-| swarm | `SWARM_` | `MAX_ACTIVE_BOTS` (50), `CAPITAL_PER_BOT` (10), `AUTO_DEPLOY` (false) |
-| clmm | `CLMM_` | `TARGET_PAIR` (sol_usdc), `BASE_RANGE_PCT` (2.0), `REBALANCE_THRESHOLD_PCT` (70) |
-| watchlist | `WL_` | `EVAL_INTERVAL_SECONDS` (300), `MAX_ARB_TOKENS` (40), `MAX_REWARDS_POOLS` (20), `MAX_FUNDING_SYMBOLS` (20) |
+| Service   | Prefix   | Key Variables                                                                                              |
+| --------- | -------- | ---------------------------------------------------------------------------------------------------------- |
+| lab       | `LAB_`   | `DATA_FILE` (./experiments.json), `EVAL_INTERVAL_SECONDS` (300)                                            |
+| alert     | `ALERT_` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, per-signal toggles                                               |
+| swarm     | `SWARM_` | `MAX_ACTIVE_BOTS` (50), `CAPITAL_PER_BOT` (10), `AUTO_DEPLOY` (false)                                      |
+| clmm      | `CLMM_`  | `TARGET_PAIR` (sol_usdc), `BASE_RANGE_PCT` (2.0), `REBALANCE_THRESHOLD_PCT` (70)                           |
+| watchlist | `WL_`    | `EVAL_INTERVAL_SECONDS` (300), `MAX_ARB_TOKENS` (40), `MAX_REWARDS_POOLS` (20), `MAX_FUNDING_SYMBOLS` (20) |
 
 ### Tier 4 — Manual / on-demand
 
-| Service | Prefix | Key Variables |
-|---|---|---|
-| unlock | `UNLOCK_` | `DATA_FILE` (./unlocks.json), `PRE_UNLOCK_HOURS` (24), `POST_UNLOCK_HOURS` (48) |
-| backtest | `BT_` | `API_BASE_URL` (http://localhost:8000) |
-| migration | `MIG_` | `EVENTS_FILE` (./events.json), `NEW_POOL_MAX_AGE_MINUTES` (60) |
+| Service   | Prefix    | Key Variables                                                                   |
+| --------- | --------- | ------------------------------------------------------------------------------- | --------------------------- |
+| unlock    | `UNLOCK_` | `DATA_FILE` (./unlocks.json), `PRE_UNLOCK_HOURS` (24), `POST_UNLOCK_HOURS` (48) | Auto-cleans expired entries |
+| backtest  | `BT_`     | `API_BASE_URL` (http://localhost:8000)                                          | —                           |
+| migration | `MIG_`    | `EVENTS_FILE` (./events.json), `NEW_POOL_MAX_AGE_MINUTES` (60)                  | Auto-cleans expired entries |
 
 ---
 
@@ -189,12 +191,12 @@ Edit `unlock-service/unlocks.json` with entries from [TokenUnlocks.app](https://
 ]
 ```
 
-| Status | Window | Action |
-|---|---|---|
-| PRE_UNLOCK | 0–24h before | Widen buy spread (1.5x), tighten sell (0.8x) |
-| POST_UNLOCK | 0–48h after | Mean reversion — tighten buy (0.8x) |
-| UPCOMING | >24h before | No action |
-| INSIGNIFICANT | <2% supply | Ignored |
+| Status        | Window       | Action                                       |
+| ------------- | ------------ | -------------------------------------------- |
+| PRE_UNLOCK    | 0–24h before | Widen buy spread (1.5x), tighten sell (0.8x) |
+| POST_UNLOCK   | 0–48h after  | Mean reversion — tighten buy (0.8x)          |
+| UPCOMING      | >24h before  | No action                                    |
+| INSIGNIFICANT | <2% supply   | Ignored                                      |
 
 ---
 
@@ -203,40 +205,40 @@ Edit `unlock-service/unlocks.json` with entries from [TokenUnlocks.app](https://
 1. **EMQX dashboard** → http://localhost:18083 → Monitoring → check topics like `hbot/regime/sol_usdc`
 2. **Service logs** → look for `Connected to MQTT` and periodic signal publications
 3. **Alpha test** → run `alpha_service.py`, wait ~15s, confirm `Fetched X Solana pairs`
-4. **Alert test** → if Telegram configured, startup message: *"Alert Service Started"*
+4. **Alert test** → if Telegram configured, startup message: _"Alert Service Started"_
 
 ---
 
 ## MQTT Topic Map
 
-| Topic | Signals |
-|---|---|
-| `hbot/regime/{pair}` | BULL / BEAR / SIDEWAYS / SPIKE |
-| `hbot/correlation/{pair}` | CONVERGING / DIVERGING / NEUTRAL |
-| `hbot/funding/{pair}` | HIGH_POSITIVE / NEUTRAL / HIGH_NEGATIVE |
-| `hbot/session/{pair}` | ASIA / EU / US / NIGHT + spread_mult |
-| `hbot/inventory/{pair}` | Skew, kill switch, drawdown |
-| `hbot/hedge/{pair}` | Delta, hedge ratio, order actions |
-| `hbot/analytics/{pair}` | PnL, win rate, Sharpe |
-| `hbot/backtest/{pair}` | Sweep results, top configs |
-| `hbot/lab/{pair}` | Experiment status, kills, promotions |
-| `hbot/alpha/signal/{token}` | Scored tokens (score >= 7) |
-| `hbot/alpha/new_listing/{token}` | New pairs <48h, liq >$50K |
-| `hbot/unlock/pre/{pair}` | Pre-unlock spread adjustments |
-| `hbot/unlock/post/{pair}` | Post-unlock mean reversion |
-| `hbot/arb/{token}` | Cross-DEX price discrepancies |
-| `hbot/funding_scan/{symbol}` | High/extreme funding rates + ranked summary |
-| `hbot/narrative/{category}/{token}` | Narrative volume spikes |
-| `hbot/swarm/deploy/{token}` | Bot deployment recommendations |
-| `hbot/swarm/status` | Swarm fleet dashboard |
-| `hbot/clmm/{pair}` | Optimal range + rebalance signals |
-| `hbot/migration/event/{token}` | Scheduled airdrop/migration events |
-| `hbot/migration/new_pool/{token}` | Brand-new pool detections (<60min) |
-| `hbot/rewards/{token}` | Per-pool APR + risk-adjusted ranking |
-| `hbot/rewards/summary` | Top 5 pools by risk-adjusted APR |
-| `hbot/watchlist/added/{type}/{symbol}` | Token auto-added to arb/rewards/funding list |
-| `hbot/watchlist/removed/{type}/{symbol}` | Stale token auto-removed from list |
-| `hbot/watchlist/status` | Watchlist counts (arb, rewards, funding) |
+| Topic                                    | Signals                                      |
+| ---------------------------------------- | -------------------------------------------- |
+| `hbot/regime/{pair}`                     | BULL / BEAR / SIDEWAYS / SPIKE               |
+| `hbot/correlation/{pair}`                | CONVERGING / DIVERGING / NEUTRAL             |
+| `hbot/funding/{pair}`                    | HIGH_POSITIVE / NEUTRAL / HIGH_NEGATIVE      |
+| `hbot/session/{pair}`                    | ASIA / EU / US / NIGHT + spread_mult         |
+| `hbot/inventory/{pair}`                  | Skew, kill switch, drawdown                  |
+| `hbot/hedge/{pair}`                      | Delta, hedge ratio, order actions            |
+| `hbot/analytics/{pair}`                  | PnL, win rate, Sharpe                        |
+| `hbot/backtest/{pair}`                   | Sweep results, top configs                   |
+| `hbot/lab/{pair}`                        | Experiment status, kills, promotions         |
+| `hbot/alpha/signal/{token}`              | Scored tokens (score >= 7)                   |
+| `hbot/alpha/new_listing/{token}`         | New pairs <48h, liq >$50K                    |
+| `hbot/unlock/pre/{pair}`                 | Pre-unlock spread adjustments                |
+| `hbot/unlock/post/{pair}`                | Post-unlock mean reversion                   |
+| `hbot/arb/{token}`                       | Cross-DEX price discrepancies                |
+| `hbot/funding_scan/{symbol}`             | High/extreme funding rates + ranked summary  |
+| `hbot/narrative/{category}/{token}`      | Narrative volume spikes                      |
+| `hbot/swarm/deploy/{token}`              | Bot deployment recommendations               |
+| `hbot/swarm/status`                      | Swarm fleet dashboard                        |
+| `hbot/clmm/{pair}`                       | Optimal range + rebalance signals            |
+| `hbot/migration/event/{token}`           | Scheduled airdrop/migration events           |
+| `hbot/migration/new_pool/{token}`        | Brand-new pool detections (<60min)           |
+| `hbot/rewards/{token}`                   | Per-pool APR + risk-adjusted ranking         |
+| `hbot/rewards/summary`                   | Top 5 pools by risk-adjusted APR             |
+| `hbot/watchlist/added/{type}/{symbol}`   | Token auto-added to arb/rewards/funding list |
+| `hbot/watchlist/removed/{type}/{symbol}` | Stale token auto-removed from list           |
+| `hbot/watchlist/status`                  | Watchlist counts (arb, rewards, funding)     |
 
 Alert service subscribes to `hbot/#` and forwards to Telegram.
 
@@ -263,14 +265,14 @@ Edge Services (Python → MQTT)          └── Gateway       :15888 (DEX rou
 
 ## Default Credentials
 
-| Service | Username | Password |
-|---|---|---|
-| MQTT Broker | admin | password |
-| Hummingbot API | admin | admin |
-| PostgreSQL | hbot | hummingbot-api |
-| EMQX Dashboard | admin | public |
-| Gateway | — | admin (passphrase) |
-| Hummingbot Config | — | admin (CONFIG_PASSWORD) |
+| Service           | Username | Password                |
+| ----------------- | -------- | ----------------------- |
+| MQTT Broker       | admin    | password                |
+| Hummingbot API    | admin    | admin                   |
+| PostgreSQL        | hbot     | hummingbot-api          |
+| EMQX Dashboard    | admin    | public                  |
+| Gateway           | —        | admin (passphrase)      |
+| Hummingbot Config | —        | admin (CONFIG_PASSWORD) |
 
 > Change all defaults before running with real funds.
 

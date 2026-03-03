@@ -8,6 +8,7 @@
 ## The Core Problem
 
 95% of Hummingbot users do the same thing:
+
 1. Pick PMM or Arb
 2. Choose ETH/USDT or SOL/USDC
 3. Set 0.5% spreads
@@ -58,12 +59,12 @@ def classify_regime(candles_4h):
 
 ### Config Mapping
 
-| Regime | Config Action |
-|---|---|
-| SIDEWAYS | Standard symmetric PMM (default) |
-| BULL | Tighter buys, wider sells, 65% base target |
-| BEAR | Wider buys, tighter sells, 35% base target |
-| SPIKE | Kill PMM, switch to arb-only OR pause entirely |
+| Regime   | Config Action                                  |
+| -------- | ---------------------------------------------- |
+| SIDEWAYS | Standard symmetric PMM (default)               |
+| BULL     | Tighter buys, wider sells, 65% base target     |
+| BEAR     | Wider buys, tighter sells, 35% base target     |
+| SPIKE    | Kill PMM, switch to arb-only OR pause entirely |
 
 ### Implementation
 
@@ -100,13 +101,13 @@ def classify_regime(candles_4h):
 
 ### Key Parameters (hedge-service/config.py)
 
-| Parameter | Default | Purpose |
-|---|---|---|
-| `delta_threshold` | 0.5 SOL | Minimum delta before hedging |
-| `max_hedge_order_size` | 10.0 | Max single order size |
-| `hedge_leverage` | 5x | Hyperliquid margin leverage |
-| `max_position_size` | 50.0 | Safety cap on total short |
-| `cooldown_seconds` | 10 | Prevents rapid-fire orders |
+| Parameter              | Default | Purpose                      |
+| ---------------------- | ------- | ---------------------------- |
+| `delta_threshold`      | 0.5 SOL | Minimum delta before hedging |
+| `max_hedge_order_size` | 10.0    | Max single order size        |
+| `hedge_leverage`       | 5x      | Hyperliquid margin leverage  |
+| `max_position_size`    | 50.0    | Safety cap on total short    |
+| `cooldown_seconds`     | 10      | Prevents rapid-fire orders   |
 
 ### Capital Split
 
@@ -156,20 +157,22 @@ EXPLORATION (10% of capital)
 
 ### MQTT Commands
 
-| Command | Topic | Payload |
-|---|---|---|
-| Create | `hbot/lab/cmd/create` | `{hypothesis, pair, tier, capital, config_ref, trial_hours, kill_criteria, success_criteria}` |
-| Kill | `hbot/lab/cmd/kill` | `{id, reason}` |
-| Promote | `hbot/lab/cmd/promote` | `{id}` |
+| Command | Topic                  | Payload                                                                                       |
+| ------- | ---------------------- | --------------------------------------------------------------------------------------------- |
+| Create  | `hbot/lab/cmd/create`  | `{hypothesis, pair, tier, capital, config_ref, trial_hours, kill_criteria, success_criteria}` |
+| Kill    | `hbot/lab/cmd/kill`    | `{id, reason}`                                                                                |
+| Promote | `hbot/lab/cmd/promote` | `{id}`                                                                                        |
 
 ### Auto-Evaluation (every 5 min)
 
 **Kill criteria** (auto-enforced):
+
 - Total PnL exceeds max loss (default: -$5)
 - Max drawdown exceeded (default: 10%)
 - Trial expired unprofitable (default: 72 hours)
 
 **Promotion criteria** (logged as recommendation, operator must send promote command):
+
 - Daily PnL above threshold (default: $0.30)
 - Win rate above minimum (default: 40%)
 - Consecutive profitable days met (default: 3)
@@ -281,13 +284,13 @@ The last point is exactly why you SHOULD do it.
 
 ### Data Sources (Free)
 
-| Source | What | How to Access |
-|---|---|---|
+| Source      | What                              | How to Access                 |
+| ----------- | --------------------------------- | ----------------------------- |
 | DexScreener | Trending pairs, volume, liquidity | Free API or Playwright scrape |
-| Birdeye | Solana token analytics | Free API |
-| CoinGecko | Price data, trending | Free API |
-| Solana RPC | New pool events | WebSocket (free tier) |
-| Twitter/X | Social sentiment | Serper search API |
+| Birdeye     | Solana token analytics            | Free API                      |
+| CoinGecko   | Price data, trending              | Free API                      |
+| Solana RPC  | New pool events                   | WebSocket (free tier)         |
+| Twitter/X   | Social sentiment                  | Serper search API             |
 
 ---
 
@@ -347,7 +350,7 @@ Monitor funding rates at: coinglass.com or Hyperliquid's own dashboard.
 
 ### Token Unlock Calendar — IMPLEMENTED
 
-> **Implementation**: `unlock-service/` — reads operator-maintained `unlocks.json`, classifies each entry as PRE_UNLOCK / POST_UNLOCK / UPCOMING / EXPIRED / INSIGNIFICANT. Publishes spread multiplier recommendations to `hbot/unlock/pre/{pair}` and `hbot/unlock/post/{pair}`. Alert-service forwards to Telegram with hours-until/since and spread adjustments.
+> **Implementation**: `unlock-service/` — reads operator-maintained `unlocks.json`, classifies each entry as PRE_UNLOCK / POST_UNLOCK / UPCOMING / EXPIRED / INSIGNIFICANT. Publishes spread multiplier recommendations to `hbot/unlock/pre/{pair}` and `hbot/unlock/post/{pair}`. Alert-service forwards to Telegram with hours-until/since and spread adjustments. **Auto-cleanup**: expired entries are automatically removed from `unlocks.json` after `post_unlock_hours` (48h).
 
 Large token unlocks create predictable sell pressure:
 
@@ -383,6 +386,7 @@ TRADE → COLLECT DATA → ANALYZE → ADJUST → TRADE (improved)
 ### What to Collect
 
 Hummingbot saves trades to CSV/PostgreSQL. For each trade, record:
+
 - Timestamp, pair, side, price, amount
 - Market regime at time of trade (from your classifier)
 - Spread at time of fill
@@ -425,51 +429,59 @@ This is what quantitative hedge funds do. They don't guess — they measure, ite
 
 ## System 8: Cross-DEX Arbitrage Scanner — IMPLEMENTED
 
-> **Implementation**: `arb-service/` — polls DexScreener `/tokens/{address}` every 60s for a watchlist of Solana tokens, groups pairs by DEX, finds price discrepancies. Publishes to `hbot/arb/{TOKEN}`.
+> **Implementation**: `arb-service/` — polls DexScreener `/tokens/{address}` every 30s for 40+ Solana tokens, auto-discovers trending tokens from DexScreener every 30 min, groups pairs by DEX, finds price discrepancies with profitability scoring. Only reports opportunities netting $5+ per $100 trade. Publishes to `hbot/arb/{TOKEN}`.
 
 **Problem it solves**: Same token trades at different prices across Raydium, Orca, Meteora, etc. By the time you manually check, the gap is gone.
 
 ### How It Works
 
 ```
-[arb-service] ──polls every 60s──>
+[arb-service] ──polls every 30s──>
     │
-    ├── Reads tokens.json (auto-managed by watchlist-service + operator seeds)
+    ├── Reads tokens.json (40 seed tokens) + auto-discovers trending Solana tokens every 30min
     ├── GET DexScreener /tokens/{address} for each token
     ├── Groups Solana pairs by DEX (keeps best-liquidity pair per DEX)
-    ├── Compares all DEX pairs pairwise: spread_pct = |price_a - price_b| / min(a, b) * 100
-    ├── Filters: spread > min_arb_pct (0.5%), both pools > min_liquidity ($5K)
-    └── Publishes: hbot/arb/{TOKEN} with buy_dex, sell_dex, spread_pct, max_size_usd
+    ├── Filters: min volume $5K/24h, min liquidity $10K, pool age > 1h
+    ├── Calculates net profitability: spread - slippage (0.3%) - gas ($0.01)
+    ├── Score = spread × liquidity × volume (weighted)
+    ├── Only reports if net profit on $100 >= $5 (5.3% min spread)
+    ├── TTL cleanup: seen arbs expire after 10min (can re-appear if still valid)
+    └── Publishes: hbot/arb/{TOKEN} with score, net_profit_100, trades_for_10
 ```
 
 ### Key Parameters (arb-service/config.py)
 
-| Parameter | Default | Purpose |
-|---|---|---|
-| `poll_interval_seconds` | 60 | Scan frequency |
-| `min_arb_pct` | 0.5% | Minimum spread to alert |
-| `min_liquidity` | $5,000 | Both pools must meet this |
-| `min_dex_count` | 2 | Need 2+ DEXs listing the token |
+| Parameter               | Default | Purpose                        |
+| ----------------------- | ------- | ------------------------------ |
+| `poll_interval_seconds` | 30      | Scan frequency                 |
+| `min_arb_pct`           | 5.3%    | $5 net on $100 after slippage  |
+| `min_liquidity`         | $10,000 | Both pools must meet this      |
+| `min_volume_24h`        | $5,000  | Min 24h volume per pool        |
+| `min_dex_count`         | 2       | Need 2+ DEXs listing the token |
+| `est_slippage_pct`      | 0.3%    | Estimated slippage deduction   |
+| `gas_cost_usd`          | $0.01   | Solana gas per swap            |
 
 ---
 
 ## System 9: Multi-Pair Funding Scanner — IMPLEMENTED
 
-> **Implementation**: `funding-scanner-service/` — fetches ALL Binance Futures funding rates in a single API call, filters symbols from `symbols.json` (dynamically managed by watchlist-service), classifies HIGH/EXTREME, publishes per-symbol + ranked summary to `hbot/funding_scan/{SYMBOL}`.
+> **Implementation**: `funding-scanner-service/` — fetches ALL Binance Futures funding rates in a single API call, monitors 35 Solana ecosystem symbols from `symbols.json` AND auto-discovers extreme rates across ALL Binance perps. Classifies HIGH/EXTREME, publishes per-symbol + ranked summary to `hbot/funding_scan/{SYMBOL}`.
 
-**Problem it solves**: `funding-service` monitors a single pair. This scans the entire futures market to find the best funding rate harvesting opportunities across all watched symbols.
+**Problem it solves**: `funding-service` monitors a single pair. This scans the entire futures market to find the best funding rate harvesting opportunities across all symbols.
 
 ### How It Works
 
 ```
 [funding-scanner-service] ──polls every 5min──>
     │
-    ├── GET Binance /fapi/v1/premiumIndex (returns ALL symbols in one call)
-    ├── Reads symbols.json each cycle (auto-updated by watchlist-service)
+    ├── GET Binance /fapi/v1/premiumIndex (returns ALL 500+ symbols in one call)
+    ├── Reads symbols.json (35 Solana ecosystem perps)
+    ├── Auto-discovery: also checks ALL Binance perps for extreme rates (>50% APR)
     ├── Classifies: HIGH (> 0.03%), EXTREME (> 0.1%)
     ├── Calculates annualized APR: rate × 3 × 365 × 100
-    ├── Filters: annualized_apr >= min_annualized_apr (30%)
-    └── Publishes: hbot/funding_scan/{SYMBOL} + hbot/funding_scan/summary (ranked)
+    ├── Watchlist: alerts if APR >= 30%. Non-watchlist: alerts if APR >= 50%
+    ├── Tags each alert as "watchlist" or "auto_discovered"
+    └── Publishes: hbot/funding_scan/{SYMBOL} + hbot/funding_scan/summary (top 10)
 ```
 
 ---
@@ -495,7 +507,7 @@ This is what quantitative hedge funds do. They don't guess — they measure, ite
 
 ### Seed Narratives (narratives.json)
 
-AI, RWA, MEME, DEPIN, LST, GAMING — each with keyword→token mappings. Operator adds/removes narratives as market trends shift.
+10 categories: AI_AGENTS, DEPIN, MEME_SOL, RWA, LST_DEFI, GAMING, INFRA, POLITICAL, CLMM_DEX, FUNDING_ARB — each with keyword→token mappings. Operator adds/removes narratives as market trends shift.
 
 ---
 
@@ -523,14 +535,14 @@ AI, RWA, MEME, DEPIN, LST, GAMING — each with keyword→token mappings. Operat
 
 ### Key Parameters
 
-| Parameter | Default | Purpose |
-|---|---|---|
-| `max_active_bots` | 50 | Fleet size cap |
-| `capital_per_bot` | $10 | Tiny, disposable capital per token |
-| `total_swarm_capital` | $500 | Total swarm budget |
-| `bot_ttl_hours` | 48 | Auto-expire bots after 48h |
-| `kill_loss_pct` | 20% | Kill bot if loss exceeds this |
-| `auto_deploy` | false | Phase 1: recommend only |
+| Parameter             | Default | Purpose                            |
+| --------------------- | ------- | ---------------------------------- |
+| `max_active_bots`     | 50      | Fleet size cap                     |
+| `capital_per_bot`     | $10     | Tiny, disposable capital per token |
+| `total_swarm_capital` | $500    | Total swarm budget                 |
+| `bot_ttl_hours`       | 48      | Auto-expire bots after 48h         |
+| `kill_loss_pct`       | 20%     | Kill bot if loss exceeds this      |
+| `auto_deploy`         | false   | Phase 1: recommend only            |
 
 ---
 
@@ -561,7 +573,7 @@ AI, RWA, MEME, DEPIN, LST, GAMING — each with keyword→token mappings. Operat
 
 ## System 13: Airdrop & Migration Monitor — IMPLEMENTED
 
-> **Implementation**: `migration-service/` — dual function: monitors operator-maintained events.json for scheduled token events (airdrops, migrations, launches), AND scans DexScreener for brand-new Solana pools (<60min old). Publishes to `hbot/migration/event/{TOKEN}` and `hbot/migration/new_pool/{TOKEN}`.
+> **Implementation**: `migration-service/` — dual function: monitors operator-maintained events.json for scheduled token events (airdrops, migrations, launches), AND scans DexScreener for brand-new Solana pools (<60min old). Publishes to `hbot/migration/event/{TOKEN}` and `hbot/migration/new_pool/{TOKEN}`. **Auto-cleanup**: expired events are automatically removed from `events.json` after `post_event_hours` (48h).
 
 **Problem it solves**: Token migrations, airdrops, and new pool launches create temporary inefficiencies. Most traders miss them entirely or notice hours late.
 
@@ -648,19 +660,19 @@ AI, RWA, MEME, DEPIN, LST, GAMING — each with keyword→token mappings. Operat
 
 ### Key Parameters (watchlist-service/config.py)
 
-| Parameter | Default | Purpose |
-|---|---|---|
-| `eval_interval_seconds` | 300 | Eval cycle frequency |
-| `boost_poll_seconds` | 900 | DexScreener trending poll |
-| `min_liquidity_arb` | $50K | Min liquidity for arb list |
-| `min_liquidity_rewards` | $100K | Min liquidity for rewards list |
-| `min_volume_24h` | $100K | Min 24h volume for any list |
-| `max_arb_tokens` | 40 | Cap on arb token watchlist |
-| `max_rewards_pools` | 20 | Cap on rewards pool list |
-| `max_funding_symbols` | 20 | Cap on funding symbols list |
-| `stale_cycles_threshold` | 3 | Consecutive stale cycles before removal |
-| `stale_volume_threshold` | $10K | Volume below this counts as stale |
-| `stale_liquidity_threshold` | $5K | Liquidity below this counts as stale |
+| Parameter                   | Default | Purpose                                 |
+| --------------------------- | ------- | --------------------------------------- |
+| `eval_interval_seconds`     | 300     | Eval cycle frequency                    |
+| `boost_poll_seconds`        | 900     | DexScreener trending poll               |
+| `min_liquidity_arb`         | $50K    | Min liquidity for arb list              |
+| `min_liquidity_rewards`     | $100K   | Min liquidity for rewards list          |
+| `min_volume_24h`            | $100K   | Min 24h volume for any list             |
+| `max_arb_tokens`            | 40      | Cap on arb token watchlist              |
+| `max_rewards_pools`         | 20      | Cap on rewards pool list                |
+| `max_funding_symbols`       | 20      | Cap on funding symbols list             |
+| `stale_cycles_threshold`    | 3       | Consecutive stale cycles before removal |
+| `stale_volume_threshold`    | $10K    | Volume below this counts as stale       |
+| `stale_liquidity_threshold` | $5K     | Liquidity below this counts as stale    |
 
 ### Rate Limit Budget
 
@@ -685,23 +697,23 @@ DexScreener trending ───┘
 
 ## Implementation Status
 
-| # | System | Status | Service |
-|---|---|---|---|
-| 1 | Regime Switching | IMPLEMENTED | `regime-service/` |
-| 2 | Delta-Neutral MM | IMPLEMENTED | `hedge-service/` |
-| 3 | Lab Framework | IMPLEMENTED | `lab-service/` |
-| 4 | Backtesting Pipeline | IMPLEMENTED | `backtest-service/` |
-| 5 | AI Alpha Pipeline | IMPLEMENTED (Phase 1) | `alpha-service/` |
-| 6 | Timing & Niche Edges | IMPLEMENTED | `session-service/`, `funding-service/`, `alpha-service/`, `unlock-service/` |
-| 7 | Data Flywheel | IMPLEMENTED | `pnl-service/` + `alert-service/` |
-| 8 | Cross-DEX Arb Scanner | IMPLEMENTED | `arb-service/` |
-| 9 | Multi-Pair Funding Scanner | IMPLEMENTED | `funding-scanner-service/` |
-| 10 | Narrative/Social Scanner | IMPLEMENTED | `narrative-service/` |
-| 11 | Multi-Pair Bot Swarm | IMPLEMENTED (Phase 1) | `swarm-service/` |
-| 12 | CLMM Range Optimizer | IMPLEMENTED | `clmm-service/` |
-| 13 | Airdrop & Migration Monitor | IMPLEMENTED | `migration-service/` |
-| 14 | LP Reward Tracker | IMPLEMENTED | `rewards-service/` |
-| 15 | Auto Token Watchlist | IMPLEMENTED | `watchlist-service/` |
+| #   | System                      | Status                | Service                                                                     |
+| --- | --------------------------- | --------------------- | --------------------------------------------------------------------------- |
+| 1   | Regime Switching            | IMPLEMENTED           | `regime-service/`                                                           |
+| 2   | Delta-Neutral MM            | IMPLEMENTED           | `hedge-service/`                                                            |
+| 3   | Lab Framework               | IMPLEMENTED           | `lab-service/`                                                              |
+| 4   | Backtesting Pipeline        | IMPLEMENTED           | `backtest-service/`                                                         |
+| 5   | AI Alpha Pipeline           | IMPLEMENTED (Phase 1) | `alpha-service/`                                                            |
+| 6   | Timing & Niche Edges        | IMPLEMENTED           | `session-service/`, `funding-service/`, `alpha-service/`, `unlock-service/` |
+| 7   | Data Flywheel               | IMPLEMENTED           | `pnl-service/` + `alert-service/`                                           |
+| 8   | Cross-DEX Arb Scanner       | IMPLEMENTED           | `arb-service/`                                                              |
+| 9   | Multi-Pair Funding Scanner  | IMPLEMENTED           | `funding-scanner-service/`                                                  |
+| 10  | Narrative/Social Scanner    | IMPLEMENTED           | `narrative-service/`                                                        |
+| 11  | Multi-Pair Bot Swarm        | IMPLEMENTED (Phase 1) | `swarm-service/`                                                            |
+| 12  | CLMM Range Optimizer        | IMPLEMENTED           | `clmm-service/`                                                             |
+| 13  | Airdrop & Migration Monitor | IMPLEMENTED           | `migration-service/`                                                        |
+| 14  | LP Reward Tracker           | IMPLEMENTED           | `rewards-service/`                                                          |
+| 15  | Auto Token Watchlist        | IMPLEMENTED           | `watchlist-service/`                                                        |
 
 Supporting services: `inventory-service/`, `correlation-service/`, `alert-service/` (Telegram alerts for all 15 systems).
 
