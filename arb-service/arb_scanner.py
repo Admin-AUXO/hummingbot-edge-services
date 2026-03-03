@@ -131,8 +131,8 @@ def find_arb_opportunities(token_symbol, pairs, config):
 
             opp["score"] = score_opportunity(opp, config)
 
-            # Only include if actually profitable after costs ($5 net on $100)
-            if opp["score"] > 0 and opp["net_profit_100"] >= 5.0:
+            # Only include if actually profitable after costs ($10 net on $100)
+            if opp["score"] > 0 and opp["net_profit_100"] >= config.min_net_profit_100:
                 opportunities.append(opp)
 
     return sorted(opportunities, key=lambda x: x["score"], reverse=True)

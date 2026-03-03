@@ -14,7 +14,8 @@ class ArbConfig(BaseServiceConfig):
     tokens_file: str = "./tokens.json"
 
     # --- Filters (higher = fewer but better opportunities) ---
-    min_arb_pct: float = 5.31          # $5 net on $100 after 0.3% slippage + gas
+    min_arb_pct: float = 10.31         # $10 net on $100 after 0.3% slippage + gas
+    min_net_profit_100: float = 10.0   # $10 min net profit per $100
     min_liquidity: float = 10000.0     # Min liquidity per side (was 5000)
     min_dex_count: int = 2             # Min DEXs with liquidity
     min_volume_24h: float = 5000.0     # Min 24h volume per pool

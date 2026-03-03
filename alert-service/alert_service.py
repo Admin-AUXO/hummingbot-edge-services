@@ -70,7 +70,7 @@ def _binance_link(symbol):
 
 
 MIN_PROFIT_100 = 10
-MIN_ARB_NET_PROFIT = 5.0
+MIN_ARB_NET_PROFIT = 10.0
 SOLANA_GAS = 0.01
 EST_SLIPPAGE_PCT = 0.3
 
@@ -600,12 +600,12 @@ class AlertService(BaseService):
             self.state[key] = True
             return
         trades_for_10 = max(1, int(10 / net_profit_100)) if net_profit_100 > 0 else 999
-        if net_profit_100 >= 10:
+        if net_profit_100 >= 25:
             rating = "🟢 HIGH VALUE"
-        elif net_profit_100 >= 5:
+        elif net_profit_100 >= 15:
             rating = "🟡 GOOD"
         else:
-            rating = "⚪ SMALL"
+            rating = "⚪ NORMAL"
         est_profit_max = max_size * (spread - EST_SLIPPAGE_PCT) / 100 - SOLANA_GAS
         self.send_telegram(
             f"⚡ <b>Arb — {token}</b> [{rating}]{_dex_link(buy_addr)}\n"
