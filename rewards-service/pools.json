@@ -18,5 +18,105 @@
     "reward_apr": 25.0,
     "fee_tier": 0.3,
     "risk_score": 4
+  },
+  {
+    "token": "RAY",
+    "pair": "RAY/USDC",
+    "dex": "raydium",
+    "address": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+    "reward_token": "RAY",
+    "reward_apr": 22.0,
+    "fee_tier": 0.25,
+    "risk_score": 3
+  },
+  {
+    "token": "ORCA",
+    "pair": "ORCA/USDC",
+    "dex": "orca",
+    "address": "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE",
+    "reward_token": "ORCA",
+    "reward_apr": 18.0,
+    "fee_tier": 0.3,
+    "risk_score": 3
+  },
+  {
+    "token": "WIF",
+    "pair": "WIF/SOL",
+    "dex": "raydium",
+    "address": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+    "reward_token": "RAY",
+    "reward_apr": 45.0,
+    "fee_tier": 0.25,
+    "risk_score": 7
+  },
+  {
+    "token": "BONK",
+    "pair": "BONK/SOL",
+    "dex": "raydium",
+    "address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    "reward_token": "RAY",
+    "reward_apr": 35.0,
+    "fee_tier": 0.25,
+    "risk_score": 6
+  },
+  {
+    "token": "JITOSOL",
+    "pair": "JITOSOL/SOL",
+    "dex": "orca",
+    "address": "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+    "reward_token": "JTO",
+    "reward_apr": 8.0,
+    "fee_tier": 0.01,
+    "risk_score": 1
+  },
+  {
+    "token": "MSOL",
+    "pair": "MSOL/SOL",
+    "dex": "orca",
+    "address": "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+    "reward_token": "MNDE",
+    "reward_apr": 7.5,
+    "fee_tier": 0.01,
+    "risk_score": 1
+  },
+  {
+    "token": "DRIFT",
+    "pair": "DRIFT/USDC",
+    "dex": "meteora",
+    "address": "DriFtupJYLTosbwoN8koMbEYSx54aFAVLddWsbksjwg7",
+    "reward_token": "MET",
+    "reward_apr": 30.0,
+    "fee_tier": 0.3,
+    "risk_score": 5
+  },
+  {
+    "token": "KMNO",
+    "pair": "KMNO/USDC",
+    "dex": "meteora",
+    "address": "KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS",
+    "reward_token": "MET",
+    "reward_apr": 28.0,
+    "fee_tier": 0.3,
+    "risk_score": 5
+  },
+  {
+    "token": "POPCAT",
+    "pair": "POPCAT/SOL",
+    "dex": "raydium",
+    "address": "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr",
+    "reward_token": "RAY",
+    "reward_apr": 55.0,
+    "fee_tier": 0.25,
+    "risk_score": 8
+  },
+  {
+    "token": "FARTCOIN",
+    "pair": "FARTCOIN/SOL",
+    "dex": "raydium",
+    "address": "9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump",
+    "reward_token": "RAY",
+    "reward_apr": 60.0,
+    "fee_tier": 0.25,
+    "risk_score": 9
   }
 ]

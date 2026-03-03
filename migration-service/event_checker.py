@@ -20,6 +20,34 @@ def load_events(path):
         return []
 
 
+def auto_cleanup_events(path, post_event_hours):
+    """Remove expired event entries from the JSON file."""
+    try:
+        events = load_events(path)
+        now = time.time()
+        active = []
+        removed = 0
+        for e in events:
+            event_ts = parse_event_time(e)
+            if event_ts == 0:
+                removed += 1
+                continue
+            hours_since = (now - event_ts) / 3600
+            if hours_since > post_event_hours:
+                removed += 1
+                logger.info(f"Cleaned up expired event: {e.get('token', '?')} {e.get('event_type', '?')}")
+            else:
+                active.append(e)
+        if removed > 0:
+            with open(path, "w") as f:
+                json.dump(active, f, indent=2)
+            logger.info(f"Removed {removed} expired event entries")
+        return active
+    except Exception as e_err:
+        logger.error(f"Auto-cleanup failed: {e_err}")
+        return load_events(path)
+
+
 def parse_event_time(event):
     ts = event.get("event_time", "")
     try:

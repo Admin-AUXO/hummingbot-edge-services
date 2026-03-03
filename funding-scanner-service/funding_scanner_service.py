@@ -52,7 +52,10 @@ class FundingScannerService(BaseService):
 
         for entry in all_rates:
             symbol = entry.get("symbol", "")
-            if symbol not in watch_set:
+            is_watched = symbol in watch_set
+
+            # Skip non-watched if auto-discovery is off
+            if not is_watched and not self.config.auto_discover_all:
                 continue
 
             rate = float(entry.get("lastFundingRate", 0))
@@ -60,7 +63,10 @@ class FundingScannerService(BaseService):
             signal = classify_rate(rate, self.config)
             next_time = int(entry.get("nextFundingTime", 0))
 
-            if abs(annualized) >= self.config.min_annualized_apr:
+            # Use different thresholds for watched vs discovered
+            min_apr = self.config.min_annualized_apr if is_watched else self.config.auto_discover_min_apr
+
+            if abs(annualized) >= min_apr:
                 opportunities.append({
                     "symbol": symbol,
                     "rate": rate,
@@ -68,6 +74,7 @@ class FundingScannerService(BaseService):
                     "signal": signal,
                     "direction": "SHORT_PAYS" if rate > 0 else "LONG_PAYS",
                     "next_funding_time": next_time,
+                    "source": "watchlist" if is_watched else "auto_discovered",
                 })
 
             prev = self.last_signals.get(symbol)
@@ -79,6 +86,7 @@ class FundingScannerService(BaseService):
                     "signal": signal,
                     "direction": "SHORT_PAYS" if rate > 0 else "LONG_PAYS",
                     "next_funding_time": next_time,
+                    "source": "watchlist" if is_watched else "auto_discovered",
                     "timestamp": time.time(),
                 }
                 topic = f"{self.config.mqtt_topic_prefix}/{symbol}"
@@ -86,6 +94,7 @@ class FundingScannerService(BaseService):
                 self.logger.info(
                     f"FUNDING SPIKE: {symbol} rate={rate:.6f} "
                     f"APR={annualized:.1f}% ({signal})"
+                    f"{' [DISCOVERED]' if not is_watched else ''}"
                 )
             self.last_signals[symbol] = signal
 
@@ -93,11 +102,11 @@ class FundingScannerService(BaseService):
             ranked = sorted(opportunities, key=lambda x: abs(x["annualized_apr"]), reverse=True)
             summary = {
                 "total_opportunities": len(ranked),
-                "top_rates": ranked[:5],
+                "top_rates": ranked[:10],
                 "timestamp": time.time(),
             }
             self.publish(f"{self.config.mqtt_topic_prefix}/summary", summary)
-            self.logger.info(f"Found {len(ranked)} funding opportunities above {self.config.min_annualized_apr}% APR")
+            self.logger.info(f"Found {len(ranked)} funding opportunities above threshold")
         else:
             self.logger.info(f"No funding opportunities above threshold")
 

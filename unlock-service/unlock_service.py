@@ -9,6 +9,7 @@ from shared.base_service import BaseService
 from unlock_checker import (
     POST_UNLOCK,
     PRE_UNLOCK,
+    auto_cleanup_unlocks,
     build_post_unlock_payload,
     build_pre_unlock_payload,
     classify_unlock,
@@ -24,6 +25,9 @@ class UnlockService(BaseService):
         self.last_signals = {}
 
     def check_unlocks(self):
+        # Auto-clean expired entries from the JSON file
+        auto_cleanup_unlocks(self.config.data_file, self.config.post_unlock_hours)
+
         unlocks = load_unlocks(self.config.data_file)
         self.logger.info(f"Loaded {len(unlocks)} unlock entries")
 

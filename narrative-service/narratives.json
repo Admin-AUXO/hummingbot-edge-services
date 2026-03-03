@@ -1,8 +1,12 @@
 [
-  {"keyword": "AI agent", "category": "AI", "tokens": ["AI16Z", "VIRTUAL", "GRIFFAIN", "ARC"]},
-  {"keyword": "RWA token", "category": "RWA", "tokens": ["ONDO", "MAPLE", "CENTRIFUGE"]},
-  {"keyword": "meme solana", "category": "MEME", "tokens": ["BONK", "WIF", "POPCAT", "MEW"]},
-  {"keyword": "DePIN crypto", "category": "DEPIN", "tokens": ["RNDR", "HNT", "MOBILE", "IO"]},
-  {"keyword": "liquid staking solana", "category": "LST", "tokens": ["MSOL", "JITOSOL", "BSOL"]},
-  {"keyword": "gaming crypto solana", "category": "GAMING", "tokens": ["ATLAS", "DUST", "GMT"]}
+  {"keyword": "AI agent crypto", "category": "AI_AGENTS", "tokens": ["AI16Z", "GRIFFAIN", "ARC", "GOAT", "AIXBT", "VIRTUAL", "COOKIE"]},
+  {"keyword": "DePIN crypto network", "category": "DEPIN", "tokens": ["RENDER", "HNT", "MOBILE", "IO", "GRASS", "NOSANA"]},
+  {"keyword": "meme coin solana trending", "category": "MEME_SOL", "tokens": ["BONK", "WIF", "POPCAT", "MEW", "FARTCOIN", "TRUMP", "BOME", "CHILLGUY", "MOODENG", "PNUT"]},
+  {"keyword": "RWA real world assets token", "category": "RWA", "tokens": ["ONDO", "PENDLE", "PARCL"]},
+  {"keyword": "liquid staking solana DeFi", "category": "LST_DEFI", "tokens": ["JITOSOL", "MSOL", "JUP", "RAY", "ORCA", "DRIFT", "KMNO"]},
+  {"keyword": "gaming crypto play", "category": "GAMING", "tokens": ["ATLAS", "TENSOR", "NEON"]},
+  {"keyword": "Solana infrastructure layer", "category": "INFRA", "tokens": ["PYTH", "W", "JTO", "DEEP"]},
+  {"keyword": "political meme trump melania", "category": "POLITICAL", "tokens": ["TRUMP", "MELANIA", "PENGU"]},
+  {"keyword": "concentrated liquidity DEX AMM", "category": "CLMM_DEX", "tokens": ["RAY", "ORCA", "JUP", "DRIFT", "KMNO"]},
+  {"keyword": "funding rate arbitrage perp futures", "category": "FUNDING_ARB", "tokens": ["SOL", "WIF", "BONK", "POPCAT", "FARTCOIN", "TRUMP"]}
 ]

@@ -10,6 +10,7 @@ from config import MigrationConfig
 from event_checker import (
     ACTIVE,
     POST_EVENT,
+    auto_cleanup_events,
     build_event_payload,
     classify_event,
     detect_new_pools,
@@ -38,6 +39,9 @@ class MigrationService(BaseService):
             return []
 
     def check_events(self):
+        # Auto-clean expired entries from the JSON file
+        auto_cleanup_events(self.config.events_file, self.config.post_event_hours)
+
         events = load_events(self.config.events_file)
 
         for event in events:

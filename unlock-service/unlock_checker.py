@@ -21,6 +21,34 @@ def load_unlocks(path):
         return []
 
 
+def auto_cleanup_unlocks(path, post_unlock_hours):
+    """Remove expired unlock entries from the JSON file."""
+    try:
+        unlocks = load_unlocks(path)
+        now = time.time()
+        active = []
+        removed = 0
+        for u in unlocks:
+            unlock_ts = parse_unlock_time(u)
+            if unlock_ts == 0:
+                removed += 1
+                continue
+            hours_since = (now - unlock_ts) / 3600
+            if hours_since > post_unlock_hours:
+                removed += 1
+                logger.info(f"Cleaned up expired unlock: {u.get('token', '?')}")
+            else:
+                active.append(u)
+        if removed > 0:
+            with open(path, "w") as f:
+                json.dump(active, f, indent=2)
+            logger.info(f"Removed {removed} expired unlock entries")
+        return active
+    except Exception as e:
+        logger.error(f"Auto-cleanup failed: {e}")
+        return load_unlocks(path)
+
+
 def parse_unlock_time(unlock):
     ts = unlock.get("unlock_time", "")
     try:
