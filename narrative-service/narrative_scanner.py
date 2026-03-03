@@ -32,4 +32,10 @@ def score_narrative_token(pair_data, prev_volume, config):
 
 
 def filter_spiking_tokens(scored_tokens, config):
-    return [t for t in scored_tokens if t["volume_spike"] >= config.min_volume_spike]
+    min_p1h = getattr(config, "min_price_change_1h", 1.0)
+    return [
+        t for t in scored_tokens
+        if t["volume_spike"] >= config.min_volume_spike
+        and t["price_change_5m"] > 0       # Must be moving UP right now
+        and t["price_change_1h"] >= min_p1h  # Sustained upward momentum
+    ]

@@ -51,7 +51,26 @@ def score_token(pair_data, config):
     else:
         breakdown["socials"] = "none"
 
-    breakdown["social_mentions"] = "placeholder (+0)"
+    # Price momentum scoring
+    price_5m = float(pair_data.get("priceChange", {}).get("m5", 0))
+    price_1h = float(pair_data.get("priceChange", {}).get("h1", 0))
+    price_24h = float(pair_data.get("priceChange", {}).get("h24", 0))
+
+    if price_5m > 2 and price_1h > 5:
+        score += 2
+        breakdown["momentum"] = f"5m:{price_5m:+.1f}% 1h:{price_1h:+.1f}% (STRONG)"
+    elif price_5m > 0.5 and price_1h > 2:
+        score += 1
+        breakdown["momentum"] = f"5m:{price_5m:+.1f}% 1h:{price_1h:+.1f}% (moderate)"
+    elif price_5m < -2 or price_1h < -5:
+        score -= 1
+        breakdown["momentum"] = f"5m:{price_5m:+.1f}% 1h:{price_1h:+.1f}% (DUMPING)"
+    else:
+        breakdown["momentum"] = f"5m:{price_5m:+.1f}% 1h:{price_1h:+.1f}% (flat)"
+
+    # Estimated profit potential on $100 (conservative: 50% of 1h trend continuation)
+    est_profit_pct = round(max(price_1h * 0.5, 0), 2) if price_1h > 0 else 0
+    breakdown["est_profit_pct"] = est_profit_pct
 
     return score, breakdown
 
@@ -85,6 +104,10 @@ def build_signal_payload(pair_data, score, breakdown):
     payload["mcap"] = float(pair_data.get("marketCap", 0) or pair_data.get("fdv", 0) or 0)
     payload["score"] = score
     payload["breakdown"] = breakdown
+    payload["est_profit_pct"] = breakdown.get("est_profit_pct", 0)
+    payload["price_change_5m"] = float(pair_data.get("priceChange", {}).get("m5", 0))
+    payload["price_change_1h"] = float(pair_data.get("priceChange", {}).get("h1", 0))
+    payload["price_change_24h"] = float(pair_data.get("priceChange", {}).get("h24", 0))
     return payload
 
 

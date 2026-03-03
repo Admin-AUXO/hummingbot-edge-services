@@ -10,7 +10,7 @@ class AlphaConfig(BaseServiceConfig):
     mqtt_topic_prefix: str = "hbot/alpha"
     poll_interval_seconds: int = 900
 
-    min_score: int = 7
+    min_score: int = 8
     min_liquidity: float = 50000.0
     new_listing_max_age_hours: int = 48
 

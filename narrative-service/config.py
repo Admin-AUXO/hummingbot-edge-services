@@ -15,6 +15,7 @@ class NarrativeConfig(BaseServiceConfig):
 
     min_volume_24h: float = 50000.0
     min_volume_spike: float = 2.0
+    min_price_change_1h: float = 1.0
     min_liquidity: float = 20000.0
 
     model_config = {"env_prefix": "NARR_"}

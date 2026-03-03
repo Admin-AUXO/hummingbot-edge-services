@@ -37,7 +37,7 @@ class TestScoreToken:
         pair = _pair(volume_24h=200000, volume_1h=50000, mcap=200000,
                      buys=300, sells=100, liquidity=60000, socials=True)
         score, bd = score_token(pair, CFG)
-        assert score == 9
+        assert score == 9  # no priceChange data in test pair = flat momentum (+0)
 
     def test_zero_score(self):
         pair = _pair(volume_24h=100, volume_1h=1, mcap=1000000,
@@ -71,7 +71,7 @@ class TestScoreToken:
 
     def test_breakdown_keys(self):
         _, bd = score_token(_pair(), CFG)
-        expected = {"vol_mcap", "h1_vol_ratio", "buy_sell_ratio", "liquidity", "socials", "social_mentions"}
+        expected = {"vol_mcap", "h1_vol_ratio", "buy_sell_ratio", "liquidity", "socials", "momentum", "est_profit_pct"}
         assert set(bd.keys()) == expected
 
 
