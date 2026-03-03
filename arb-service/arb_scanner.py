@@ -26,6 +26,12 @@ def group_pairs_by_dex(pairs, config):
                 if age_hours < 1:  # Skip pools under 1 hour old (possible rug)
                     continue
 
+        # Scam / Honeypot filter: If there are zero sells but multiple buys, it's likely a honeypot
+        sells = int(pair.get("txns", {}).get("h24", {}).get("sells", 0))
+        buys = int(pair.get("txns", {}).get("h24", {}).get("buys", 0))
+        if sells == 0 and buys > 5:
+            continue
+
         # Price change data for momentum context
         price_change = pair.get("priceChange", {})
         p5m = float(price_change.get("m5", 0) or 0)
@@ -92,10 +98,22 @@ def find_arb_opportunities(token_symbol, pairs, config):
     for i in range(len(dex_list)):
         for j in range(i + 1, len(dex_list)):
             a, b = dex_list[i], dex_list[j]
+
+            # Sanity check: reject absurd price ratios (bad data / scam pools)
+            high_p = max(a["price"], b["price"])
+            low_p = min(a["price"], b["price"])
+            price_ratio = high_p / low_p if low_p > 0 else float("inf")
+            if price_ratio > config.max_price_ratio:
+                continue
+
             mid = (a["price"] + b["price"]) / 2
             spread_pct = abs(a["price"] - b["price"]) / mid * 100
 
             if spread_pct < config.min_arb_pct:
+                continue
+
+            # Cap: spreads above max_spread_pct are almost always bad data
+            if spread_pct > config.max_spread_pct:
                 continue
 
             buy_side = a if a["price"] < b["price"] else b

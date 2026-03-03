@@ -887,8 +887,8 @@ class AlertService(BaseService):
                 medal = {1: "🥇", 2: "🥈", 3: "🥉"}.get(i, f"{i}.")
                 lines.append(
                     f"{medal} <b>{p.get('pair', '?')}</b> ({p.get('dex', '?')}){_token_link(addr)}\n"
-                    f"   {_fmt_pct(eff)} APR | Risk: {risk}/10 | {_fmt_usd(liq)} liq\n"
-                    f"   Income ($100): <b>{_fmt_usd(earn_100_day)}/day</b>"
+                    f"   {_fmt_pct(eff)} [est.] APR | Risk: {risk}/10 | {_fmt_usd(liq)} liq\n"
+                    f"   Income ($100): <b>{_fmt_usd(earn_100_day)}/day</b> [est.]"
                 )
             self.send_telegram("\n\n".join(lines))
             self.state[key] = True
@@ -919,9 +919,9 @@ class AlertService(BaseService):
             change_str = f"+{eff_apr - prev_apr:.1f}%" if (eff_apr - prev_apr) > 0 else f"{eff_apr - prev_apr:.1f}%"
             self.send_telegram(
                 f"{apr_dir} <b>LP Reward — {pair}</b> ({dex}){_token_link(addr)}\n"
-                f"APR: <b>{_fmt_pct(eff_apr)}</b> ({change_str}) | Risk: {risk}/10\n"
+                f"APR (est.): <b>{_fmt_pct(eff_apr)}</b> ({change_str}) | Risk: {risk}/10\n"
                 f"Fees: {_fmt_pct(fee_apr)} + Rewards: {_fmt_pct(reward_apr)} ({reward_token})\n"
-                f"Income ($100): <b>{_fmt_usd(earn_100_day)}/day</b> | {_fmt_usd(earn_100_month)}/mo\n"
+                f"Income ($100): <b>{_fmt_usd(earn_100_day)}/day</b> [est.] | {_fmt_usd(earn_100_month)}/mo\n"
                 f"Liq: {_fmt_usd(liq)} | Vol: {_fmt_usd(vol)}"
             )
             self.state[key] = eff_apr

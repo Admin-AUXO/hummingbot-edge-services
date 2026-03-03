@@ -10,6 +10,12 @@ def score_narrative_token(pair_data, prev_volume, config):
     if liquidity < config.min_liquidity:
         return None
 
+    # Scam / Honeypot filter: 0 sells + buys > 5 = likely honeypot
+    sells = int(pair_data.get("txns", {}).get("h24", {}).get("sells", 0))
+    buys = int(pair_data.get("txns", {}).get("h24", {}).get("buys", 0))
+    if sells == 0 and buys > 5:
+        return None
+
     volume_spike = volume_24h / prev_volume if prev_volume > 0 else 0
     price_change_5m = float(pair_data.get("priceChange", {}).get("m5", 0))
     price_change_1h = float(pair_data.get("priceChange", {}).get("h1", 0))

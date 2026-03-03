@@ -21,6 +21,10 @@ class ArbConfig(BaseServiceConfig):
     min_volume_24h: float = 5000.0     # Min 24h volume per pool
     max_pool_age_hours: float = 0      # 0 = no filter; filter very new pools
 
+    # --- Sanity checks (reject bad data / scam pools) ---
+    max_price_ratio: float = 5.0       # Max price ratio between DEXes (5x = 400% spread)
+    max_spread_pct: float = 100.0      # Max realistic spread % (anything above is bad data)
+
     # --- Sizing ---
     max_trade_pct_of_liq: float = 0.02  # Max 2% of pool liquidity per trade
     est_slippage_pct: float = 0.3       # Estimated slippage

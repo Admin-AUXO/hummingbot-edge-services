@@ -65,6 +65,13 @@ Edge Services (Python → MQTT)              └── Gateway         :15888 (D
 - Net profit scoring system ranks by `spread × liquidity × volume`
 - Funding scanner separates watchlist (30% APR threshold) from auto-discovered (50% APR)
 
+### 🛡️ Scam & Risk Protection
+
+- **Honeypot Detection**: Arb, Alpha, and Narrative scanners auto-reject tokens with 0 sells (to prevent buying into non-sellable contracts).
+- **Wash Trading Filters**: Token scorers heavily penalize pools with extreme volume-to-MCAP ratios to prevent manipulation.
+- **LP APR Normalization**: Rewards service dampens 24h volume peaks and caps max fee APRs to 300% to prevent unrealistic yield extrapolations.
+- **Bad Data Filtering**: Arb scanner enforces maximum price deviation ratios between DEXes to ignore stale or scam pools.
+
 ### 🧹 Auto-Cleanup
 
 - Arb signals expire after 10 min (re-appear if still valid)

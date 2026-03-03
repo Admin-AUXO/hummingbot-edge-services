@@ -9,7 +9,11 @@ def score_token(pair_data, config):
     mcap = float(pair_data.get("marketCap", 0) or pair_data.get("fdv", 0) or 1)
     vol_mcap = volume_24h / mcap if mcap > 0 else 0
 
-    if vol_mcap > config.vol_mcap_threshold:
+    if vol_mcap > (config.vol_mcap_threshold * 10):
+        # Extreme volume relative to market cap is likely wash trading
+        score -= 5
+        breakdown["vol_mcap"] = f"{vol_mcap:.2f} (WASH TRADING SPAM)"
+    elif vol_mcap > config.vol_mcap_threshold:
         score += 3
         breakdown["vol_mcap"] = f"{vol_mcap:.2f} > {config.vol_mcap_threshold}"
     else:
@@ -28,7 +32,14 @@ def score_token(pair_data, config):
     sells = int(pair_data.get("txns", {}).get("h24", {}).get("sells", 0))
     buy_sell_ratio = buys / sells if sells > 0 else 0
 
-    if buy_sell_ratio > config.buy_sell_ratio_threshold:
+    if sells == 0 and buys > 10:
+        score -= 100
+        breakdown["buy_sell_ratio"] = "HONEYPOT (0 sells)"
+    elif buy_sell_ratio > (config.buy_sell_ratio_threshold * 5):
+        # Could be an artificial buy bot pumping
+        score -= 2
+        breakdown["buy_sell_ratio"] = f"{buy_sell_ratio:.2f} (Suspiciously high)"
+    elif buy_sell_ratio > config.buy_sell_ratio_threshold:
         score += 2
         breakdown["buy_sell_ratio"] = f"{buy_sell_ratio:.2f} > {config.buy_sell_ratio_threshold}"
     else:

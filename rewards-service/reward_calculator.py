@@ -4,8 +4,12 @@ import time
 def estimate_fee_apr(volume_24h, liquidity, fee_tier_pct):
     if liquidity <= 0:
         return 0.0
-    daily_fees = volume_24h * (fee_tier_pct / 100)
-    return round(daily_fees / liquidity * 365 * 100, 2)
+    # Dampen 24h volume peak to approximate a 7-day average (approx 0.5x of peak)
+    smoothed_volume = volume_24h * 0.5
+    daily_fees = smoothed_volume * (fee_tier_pct / 100)
+    raw_fee_apr = (daily_fees / liquidity) * 365 * 100
+    # Hard cap the fee APR to 300% to prevent unrealistic numbers
+    return min(round(raw_fee_apr, 2), 300.0)
 
 
 def calc_effective_apr(fee_apr, reward_apr):
