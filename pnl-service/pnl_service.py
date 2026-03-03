@@ -81,7 +81,8 @@ class PnlService(BaseService):
         try:
             resp = self.session.post(url, json=payload, timeout=30)
             resp.raise_for_status()
-            executors = resp.json()
+            data = resp.json()
+            executors = data.get("data", []) if isinstance(data, dict) else data
             return [e for e in executors if e.get("close_timestamp", 0) >= cutoff]
         except Exception as e:
             self.logger.error(f"Executor fetch failed: {e}")

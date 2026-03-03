@@ -50,7 +50,8 @@ class HedgeService(BaseService):
         }
         resp = self.session.post(url, json=payload, timeout=10)
         resp.raise_for_status()
-        positions = resp.json()
+        data = resp.json()
+        positions = data.get("data", []) if isinstance(data, dict) else data
 
         for pos in positions:
             if pos.get("trading_pair") == self.config.perp_trading_pair:

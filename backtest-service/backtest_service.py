@@ -35,13 +35,14 @@ def run_single_backtest(api_url, base_config, overrides, bt_config):
 
 
 def extract_metrics(result):
+    results = result.get("results", {})
     return {
-        "sharpe_ratio": result.get("sharpe_ratio", 0),
-        "net_pnl": result.get("net_pnl", 0),
-        "accuracy": result.get("accuracy", 0),
-        "max_drawdown_pct": result.get("max_drawdown_pct", 0),
-        "profit_factor": result.get("profit_factor", 0),
-        "total_executors": result.get("total_executors", 0),
+        "sharpe_ratio": results.get("sharpe_ratio", 0),
+        "net_pnl": results.get("net_pnl", 0),
+        "accuracy": results.get("accuracy", 0),
+        "max_drawdown_pct": results.get("max_drawdown_pct", 0),
+        "profit_factor": results.get("profit_factor", 0),
+        "total_executors": results.get("total_executors", 0),
     }
 
 

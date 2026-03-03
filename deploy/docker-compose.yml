@@ -99,7 +99,9 @@ services:
 
   hummingbot-api:
     container_name: hbot-api
-    image: hummingbot/hummingbot-api:latest
+    build:
+      context: ../hummingbot-api
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "8000:8000"
