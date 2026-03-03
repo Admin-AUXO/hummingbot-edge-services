@@ -26,7 +26,7 @@ class RegimeClassifier(BaseService):
             "interval": self.config.candle_interval,
             "limit": self.config.candle_limit,
         }
-        resp = requests.get(url, params=params, timeout=10)
+        resp = self.session.get(url, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         df = pd.DataFrame(data, columns=[

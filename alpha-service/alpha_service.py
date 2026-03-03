@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -9,9 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from config import AlphaConfig
 from scorer import build_new_listing_payload, build_signal_payload, is_new_listing, score_token
 from shared.base_service import BaseService
-
-
-MAX_SEEN = 5000
+from shared.utils import TTLCache
 
 
 class AlphaService(BaseService):
@@ -19,12 +18,14 @@ class AlphaService(BaseService):
 
     def __init__(self):
         super().__init__(AlphaConfig())
-        self.seen_signals = set()
-        self.seen_listings = set()
+        self.seen_signals = TTLCache(7200)
+        self.seen_listings = TTLCache(14400)
+        self._strict_list = set()
+        self._last_strict_fetch = 0
 
     def fetch_solana_pairs(self):
         try:
-            resp = requests.get(self.config.dex_search_url, timeout=15)
+            resp = self.session.get(self.config.dex_search_url, timeout=15)
             resp.raise_for_status()
             data = resp.json()
             pairs = data.get("pairs", [])
@@ -34,72 +35,58 @@ class AlphaService(BaseService):
             return []
 
     def fetch_strict_list(self):
+        now = time.time()
+        if now - self._last_strict_fetch < 3600 and self._strict_list:
+            return self._strict_list
+            
         try:
-            resp = requests.get("https://token.jup.ag/strict", timeout=15)
+            resp = self.session.get("https://token.jup.ag/strict", timeout=15)
             resp.raise_for_status()
             data = resp.json()
-            return {t.get("address") for t in data if isinstance(t, dict)}
+            self._strict_list = {t.get("address") for t in data if isinstance(t, dict)}
+            self._last_strict_fetch = now
+            return self._strict_list
         except Exception as e:
-            self.logger.error(f"Jupiter Strict fetch failed: {e}")
-            return set()
+            self.logger.error(f"Jupiter Strict fetch failed (using cache): {e}")
+            return self._strict_list
 
     def _cap_seen(self):
-        if len(self.seen_signals) > MAX_SEEN:
-            self.seen_signals.clear()
-        if len(self.seen_listings) > MAX_SEEN:
-            self.seen_listings.clear()
+        self.seen_signals.clear_expired()
+        self.seen_listings.clear_expired()
 
-    def scan_and_publish(self):
+    def on_tick(self):
         self._cap_seen()
         pairs = self.fetch_solana_pairs()
         strict_list = self.fetch_strict_list()
         self.logger.info(f"Fetched {len(pairs)} Solana pairs, {len(strict_list)} strict tokens")
 
-        for pair in pairs:
-            pair_addr = pair.get("pairAddress", "")
-            base_token_addr = pair.get("baseToken", {}).get("address", "")
-            token_symbol = pair.get("baseToken", {}).get("symbol", "?")
-
-            is_verified = base_token_addr in strict_list
-            if is_verified:
-                token_symbol = f"✅ {token_symbol}"
+        def process_pair(pair):
+            base_token = pair.get("baseToken", {})
+            addr, sym = base_token.get("address", ""), base_token.get("symbol", "?")
+            verified = addr in strict_list
+            if verified: sym = f"✅ {sym}"
 
             score, breakdown = score_token(pair, self.config)
-
-            if is_verified:
+            if verified:
                 score += 2
                 breakdown["verified"] = "Jupiter Strict List"
 
-            if score >= self.config.min_score and pair_addr not in self.seen_signals:
-                payload = build_signal_payload(pair, score, breakdown)
-                if is_verified:
-                    payload["token"] = token_symbol
-                topic = f"{self.config.mqtt_topic_prefix}/signal/{token_symbol.replace('✅ ', '')}"
-                self.publish(topic, payload)
-                self.seen_signals.add(pair_addr)
-                self.logger.info(f"SIGNAL: {token_symbol} score={score} liq=${payload['liquidity']:,.0f}")
+            if score >= self.config.min_score and addr not in self.seen_signals:
+                p = build_signal_payload(pair, score, breakdown)
+                if verified: p["token"] = sym
+                self.publish(f"{self.config.mqtt_topic_prefix}/signal/{sym.replace('✅ ', '')}", p)
+                self.seen_signals.add(addr)
+                self.logger.info(f"SIGNAL: {sym} score={score} liq=${p['liquidity']:,.0f}")
 
-            if is_new_listing(pair, self.config) and pair_addr not in self.seen_listings:
-                payload = build_new_listing_payload(pair)
-                if is_verified:
-                    payload["token"] = token_symbol
-                topic = f"{self.config.mqtt_topic_prefix}/new_listing/{token_symbol.replace('✅ ', '')}"
-                self.publish(topic, payload)
-                self.seen_listings.add(pair_addr)
-                self.logger.info(f"NEW LISTING: {token_symbol} age={payload['age_hours']}h liq=${payload['liquidity']:,.0f}")
+            if is_new_listing(pair, self.config) and addr not in self.seen_listings:
+                p = build_new_listing_payload(pair)
+                if verified: p["token"] = sym
+                self.publish(f"{self.config.mqtt_topic_prefix}/new_listing/{sym.replace('✅ ', '')}", p)
+                self.seen_listings.add(addr)
+                self.logger.info(f"NEW LISTING: {sym} age={p['age_hours']}h liq=${p['liquidity']:,.0f}")
 
-    def run(self):
-        self.connect_mqtt()
-        self.logger.info(f"Alpha service started, polling every {self.config.poll_interval_seconds}s")
-
-        while self.running:
-            try:
-                self.scan_and_publish()
-            except Exception as e:
-                self.logger.error(f"Scan error: {e}")
-            self.sleep_loop(self.config.poll_interval_seconds)
-
-        self.shutdown_mqtt()
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            ex.map(process_pair, pairs)
 
 
 if __name__ == "__main__":

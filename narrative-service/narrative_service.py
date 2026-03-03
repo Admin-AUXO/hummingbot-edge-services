@@ -4,6 +4,7 @@ import sys
 import time
 
 import requests
+from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -30,7 +31,7 @@ class NarrativeService(BaseService):
 
     def search_dex(self, keyword):
         try:
-            resp = requests.get(
+            resp = self.session.get(
                 self.config.dex_search_url,
                 params={"q": keyword},
                 timeout=15,
@@ -68,49 +69,25 @@ class NarrativeService(BaseService):
 
         return scored
 
-    def scan_and_publish(self):
+    def on_tick(self):
         narratives = self.load_narratives()
-        total_signals = 0
+        all_spiking = []
 
-        for narrative in narratives:
-            scored = self.scan_narrative(narrative)
-            spiking = filter_spiking_tokens(scored, self.config)
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            futures = [ex.submit(self.scan_narrative, n) for n in narratives]
+            for f in futures:
+                all_spiking.extend(filter_spiking_tokens(f.result(), self.config))
 
-            for token_data in spiking:
-                key = f"{token_data['category']}:{token_data['token']}"
-                if key in self.alerted_tokens:
-                    continue
-
-                topic = f"{self.config.mqtt_topic_prefix}/{token_data['category']}/{token_data['token']}"
-                self.publish(topic, token_data)
+        for t in all_spiking:
+            key = f"{t['category']}:{t['token']}"
+            if key not in self.alerted_tokens:
+                self.publish(f"{self.config.mqtt_topic_prefix}/{t['category']}/{t['token']}", t)
                 self.alerted_tokens.add(key)
-                total_signals += 1
-                self.logger.info(
-                    f"NARRATIVE: [{token_data['category']}] {token_data['token']} "
-                    f"vol_spike={token_data['volume_spike']}x "
-                    f"vol=${token_data['volume_24h']:,.0f} "
-                    f"5m={token_data['price_change_5m']}%"
-                )
+                self.logger.info(f"NARRATIVE: [{t['category']}] {t['token']} {t['volume_spike']}x vol=${t['volume_24h']:,.0f}")
 
-        if len(self.alerted_tokens) > 5000:
-            self.alerted_tokens.clear()
-        if len(self.prev_volumes) > 10000:
-            self.prev_volumes.clear()
-
-        self.logger.info(f"Scanned {len(narratives)} narratives, {total_signals} new signals")
-
-    def run(self):
-        self.connect_mqtt()
-        self.logger.info(f"Narrative scanner started, polling every {self.config.poll_interval_seconds}s")
-
-        while self.running:
-            try:
-                self.scan_and_publish()
-            except Exception as e:
-                self.logger.error(f"Scan error: {e}")
-            self.sleep_loop(self.config.poll_interval_seconds)
-
-        self.shutdown_mqtt()
+        if len(self.alerted_tokens) > 5000: self.alerted_tokens.clear()
+        if len(self.prev_volumes) > 10000: self.prev_volumes.clear()
+        self.logger.info(f"Scanned {len(narratives)} narratives, {len(all_spiking)} signals")
 
 
 if __name__ == "__main__":

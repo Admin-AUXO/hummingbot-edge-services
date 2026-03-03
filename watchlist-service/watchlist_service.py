@@ -68,99 +68,69 @@ class WatchlistService(BaseService):
             self.logger.error(f"Message handler error: {e}")
 
     def process_signals(self):
+        if not self.pending_signals: return {}
+        
         added = {"arb": [], "rewards": [], "funding": []}
+        ex_arb = {e["address"] for e in self.state["arb_tokens"] if "address" in e}
+        ex_rewards = {e["address"] for e in self.state["rewards_pools"] if "address" in e}
+        ex_funding = {e["symbol"] for e in self.state["funding_symbols"] if "symbol" in e}
 
         for signal in self.pending_signals:
             topic = signal.pop("_topic", "")
-
-            if "/alpha/" in topic or signal.get("source") in ("dex_boost", "dex_profile"):
-                ok, reason = should_add_arb(signal, self.state, self.config)
+            is_alpha = "/alpha/" in topic or signal.get("source") in ("dex_boost", "dex_profile")
+            is_narr = "/narrative/" in topic
+            
+            if is_alpha or is_narr:
+                source = signal.get("source", "alpha") if is_alpha else "narrative"
+                
+                # Check Arb
+                ok, _ = should_add_arb(signal, ex_arb, self.state, self.config)
                 if ok:
-                    entry = build_arb_entry(signal, signal.get("source", "alpha"))
+                    entry = build_arb_entry(signal, source)
                     self.state["arb_tokens"].append(entry)
+                    ex_arb.add(entry["address"])
                     added["arb"].append(entry)
 
-                ok, reason = should_add_funding(signal, self.state, self.config)
+                # Check Funding
+                ok, _ = should_add_funding(signal, ex_funding, self.state, self.config)
                 if ok:
                     sym = f"{signal.get('token', '')}USDT"
-                    entry = build_funding_entry(sym, signal.get("source", "alpha"))
+                    entry = build_funding_entry(sym, source)
                     self.state["funding_symbols"].append(entry)
-                    added["funding"].append(entry)
-
-            elif "/narrative/" in topic:
-                ok, reason = should_add_arb(signal, self.state, self.config)
-                if ok:
-                    entry = build_arb_entry(signal, "narrative")
-                    self.state["arb_tokens"].append(entry)
-                    added["arb"].append(entry)
-
-                ok, reason = should_add_funding(signal, self.state, self.config)
-                if ok:
-                    sym = f"{signal.get('token', '')}USDT"
-                    entry = build_funding_entry(sym, "narrative")
-                    self.state["funding_symbols"].append(entry)
+                    ex_funding.add(sym)
                     added["funding"].append(entry)
 
         self.pending_signals.clear()
-
-        for entry_type, entries in added.items():
+        
+        for etype, entries in added.items():
             for entry in entries:
-                sym = entry.get("symbol", entry.get("token", "?"))
-                self.publish(f"{self.config.mqtt_topic_prefix}/added/{entry_type}/{sym}", entry)
-                self.logger.info(f"ADDED {entry_type}: {sym}")
+                sym = entry.get("symbol") or entry.get("token", "?")
+                self.publish(f"{self.config.mqtt_topic_prefix}/added/{etype}/{sym}", entry)
+                self.logger.info(f"ADDED {etype}: {sym}")
 
         return added
 
-    def _fetch_market_data(self, addresses):
-        if not addresses:
-            return {}
-        try:
-            url = f"{self.config.dex_token_url}/{','.join(addresses[:30])}"
-            resp = requests.get(url, timeout=15)
-            resp.raise_for_status()
-            result = {}
-            for pair in resp.json():
-                addr = pair.get("baseToken", {}).get("address", "")
-                if addr and addr not in result:
-                    result[addr] = {
-                        "volume_24h": float(pair.get("volume", {}).get("h24", 0)),
-                        "liquidity": float(pair.get("liquidity", {}).get("usd", 0)),
-                    }
-            return result
-        except Exception as e:
-            self.logger.error(f"Market data fetch failed: {e}")
-            return {}
-
     def prune_cycle(self):
         removed = {"arb": [], "rewards": [], "funding": []}
-
         non_static_arb = [e for e in self.state["arb_tokens"] if e.get("source") != "static"]
         non_static_rewards = [e for e in self.state["rewards_pools"] if e.get("source") != "static"]
 
-        addresses = [e["address"] for e in non_static_arb + non_static_rewards if e.get("address")]
-        market_data = self._fetch_market_data(addresses)
+        addrs = [e["address"] for e in non_static_arb + non_static_rewards if e.get("address")]
+        md_batch = self.fetch_market_data(addrs)
 
         stale_arb = set()
         for entry in self.state["arb_tokens"]:
-            md = market_data.get(entry.get("address", ""), {})
-            if check_staleness(entry, md, self.config):
+            if check_staleness(entry, md_batch.get(entry.get("address", ""), {}), self.config):
                 stale_arb.add(id(entry))
-
         if stale_arb:
-            kept, pruned = prune_stale(self.state["arb_tokens"], stale_arb)
-            self.state["arb_tokens"] = kept
-            removed["arb"] = pruned
+            self.state["arb_tokens"], removed["arb"] = prune_stale(self.state["arb_tokens"], stale_arb)
 
         stale_rewards = set()
         for entry in self.state["rewards_pools"]:
-            md = market_data.get(entry.get("address", ""), {})
-            if check_staleness(entry, md, self.config):
+            if check_staleness(entry, md_batch.get(entry.get("address", ""), {}), self.config):
                 stale_rewards.add(id(entry))
-
         if stale_rewards:
-            kept, pruned = prune_stale(self.state["rewards_pools"], stale_rewards)
-            self.state["rewards_pools"] = kept
-            removed["rewards"] = pruned
+            self.state["rewards_pools"], removed["rewards"] = prune_stale(self.state["rewards_pools"], stale_rewards)
 
         for entry_type, entries in removed.items():
             for entry in entries:
@@ -214,7 +184,7 @@ class WatchlistService(BaseService):
             (self.config.dex_profiles_url, parse_profile_signals),
         ]:
             try:
-                resp = requests.get(url, timeout=15)
+                resp = self.session.get(url, timeout=15)
                 resp.raise_for_status()
                 signals = parser(resp.json())
                 for s in signals:

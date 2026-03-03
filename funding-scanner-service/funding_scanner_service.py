@@ -38,7 +38,7 @@ class FundingScannerService(BaseService):
 
     def fetch_all_funding(self):
         try:
-            resp = requests.get(self.config.binance_url, timeout=15)
+            resp = self.session.get(self.config.binance_url, timeout=15)
             resp.raise_for_status()
             return resp.json()
         except Exception as e:
@@ -54,7 +54,6 @@ class FundingScannerService(BaseService):
             symbol = entry.get("symbol", "")
             is_watched = symbol in watch_set
 
-            # Skip non-watched if auto-discovery is off
             if not is_watched and not self.config.auto_discover_all:
                 continue
 
@@ -63,7 +62,6 @@ class FundingScannerService(BaseService):
             signal = classify_rate(rate, self.config)
             next_time = int(entry.get("nextFundingTime", 0))
 
-            # Use different thresholds for watched vs discovered
             min_apr = self.config.min_annualized_apr if is_watched else self.config.auto_discover_min_apr
 
             if abs(annualized) >= min_apr:

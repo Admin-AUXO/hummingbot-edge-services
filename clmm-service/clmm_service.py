@@ -45,7 +45,7 @@ class ClmmService(BaseService):
     def fetch_current_price(self):
         url = "https://api.binance.com/api/v3/ticker/price"
         params = {"symbol": "SOLUSDT"}
-        resp = requests.get(url, params=params, timeout=10)
+        resp = self.session.get(url, params=params, timeout=10)
         resp.raise_for_status()
         return float(resp.json()["price"])
 

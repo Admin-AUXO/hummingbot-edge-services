@@ -31,7 +31,7 @@ class HedgeService(BaseService):
             "account_names": [self.config.spot_account_name],
             "connector_names": [self.config.spot_connector_name],
         }
-        resp = requests.post(url, json=payload, timeout=10)
+        resp = self.session.post(url, json=payload, timeout=10)
         resp.raise_for_status()
         state = resp.json()
 
@@ -48,7 +48,7 @@ class HedgeService(BaseService):
             "account_names": [self.config.perp_account_name],
             "connector_names": [self.config.perp_connector_name],
         }
-        resp = requests.post(url, json=payload, timeout=10)
+        resp = self.session.post(url, json=payload, timeout=10)
         resp.raise_for_status()
         positions = resp.json()
 
@@ -76,7 +76,7 @@ class HedgeService(BaseService):
             "position_action": position_action,
             "leverage": self.config.hedge_leverage,
         }
-        resp = requests.post(url, json=payload, timeout=10)
+        resp = self.session.post(url, json=payload, timeout=10)
         resp.raise_for_status()
         self.logger.info(f"Hedge order placed: {action} {size} {self.config.perp_trading_pair}")
         return resp.json()

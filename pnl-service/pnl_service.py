@@ -79,7 +79,7 @@ class PnlService(BaseService):
             "status": "TERMINATED",
         }
         try:
-            resp = requests.post(url, json=payload, timeout=30)
+            resp = self.session.post(url, json=payload, timeout=30)
             resp.raise_for_status()
             executors = resp.json()
             return [e for e in executors if e.get("close_timestamp", 0) >= cutoff]

@@ -1,28 +1,44 @@
 import json
 import logging
+import os
 import time
+from typing import Dict, List, Set, Tuple
 
 logger = logging.getLogger("watchlist")
 
 
-def load_state(path):
+def load_state(path: str) -> Dict:
     try:
         with open(path, "r") as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to load state from {path}, returning empty: {e}")
         return {"arb_tokens": [], "rewards_pools": [], "funding_symbols": []}
 
 
-def save_state(state, path):
-    with open(path, "w") as f:
-        json.dump(state, f, indent=2)
+def save_state(state: Dict, path: str):
+    tmp_path = f"{path}.tmp"
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump(state, f, indent=2)
+        os.replace(tmp_path, path)
+    except Exception as e:
+        logger.error(f"Failed to save state to {path}: {e}")
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
-def _wrap_entry(entry, source="static"):
-    entry["added_at"] = entry.get("added_at", time.time())
-    entry["source"] = entry.get("source", source)
-    entry["last_active_at"] = entry.get("last_active_at", time.time())
-    entry["consecutive_stale_cycles"] = entry.get("consecutive_stale_cycles", 0)
+def _wrap_entry(entry: Dict, source: str = "static") -> Dict:
+    now = time.time()
+    defaults = {
+        "added_at": now,
+        "source": source,
+        "last_active_at": now,
+        "consecutive_stale_cycles": 0
+    }
+    for k, v in defaults.items():
+        if k not in entry:
+            entry[k] = v
     return entry
 
 
@@ -53,11 +69,10 @@ def seed_state(arb_path, pools_path, symbols_path):
     return state
 
 
-def should_add_arb(signal, state, config):
+def should_add_arb(signal, existing_set, state, config):
     address = signal.get("address", "")
-    existing = {e["address"] for e in state["arb_tokens"]}
-    if address in existing:
-        return False, "duplicate address"
+    if not address or address in existing_set:
+        return False, "duplicate or missing address"
     if len(state["arb_tokens"]) >= config.max_arb_tokens:
         return False, "cap reached"
     if signal.get("liquidity", 0) < config.min_liquidity_arb:
@@ -67,11 +82,10 @@ def should_add_arb(signal, state, config):
     return True, "eligible"
 
 
-def should_add_rewards(signal, state, config):
+def should_add_rewards(signal, existing_set, state, config):
     address = signal.get("address", "")
-    existing = {e["address"] for e in state["rewards_pools"]}
-    if address in existing:
-        return False, "duplicate address"
+    if not address or address in existing_set:
+        return False, "duplicate or missing address"
     if len(state["rewards_pools"]) >= config.max_rewards_pools:
         return False, "cap reached"
     if signal.get("liquidity", 0) < config.min_liquidity_rewards:
@@ -81,12 +95,11 @@ def should_add_rewards(signal, state, config):
     return True, "eligible"
 
 
-def should_add_funding(signal, state, config):
+def should_add_funding(signal, existing_set, state, config):
     token = signal.get("token", "")
     symbol = f"{token}USDT"
-    existing = {e["symbol"] for e in state["funding_symbols"]}
-    if symbol in existing:
-        return False, "duplicate symbol"
+    if not symbol or symbol in existing_set:
+        return False, "duplicate or missing symbol"
     if len(state["funding_symbols"]) >= config.max_funding_symbols:
         return False, "cap reached"
     return True, "eligible"
@@ -148,10 +161,10 @@ def to_funding_json(entries):
     return [e["symbol"] for e in entries]
 
 
-def _valid_symbol(s):
-    if not s or len(s) > 10 or s == "?":
+def _valid_symbol(s: str) -> bool:
+    if not s or not (1 <= len(s) <= 10) or s == "?":
         return False
-    return s.isalnum() or all(c.isalnum() or c in ("_", "-") for c in s)
+    return all(c.isalnum() or c in "_-" for c in s)
 
 
 def parse_boost_signals(data):

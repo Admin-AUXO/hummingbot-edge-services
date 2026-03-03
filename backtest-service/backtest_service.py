@@ -7,6 +7,7 @@ import paho.mqtt.client as mqtt
 import requests
 import yaml
 
+from concurrent.futures import ThreadPoolExecutor
 from config import BacktestConfig
 from sweep import build_backtest_config, format_report, generate_param_grid, rank_results
 
@@ -52,18 +53,27 @@ def main():
 
     results = []
     successful = 0
-    for i, overrides in enumerate(grid):
-        logger.info(f"[{i + 1}/{len(grid)}] Testing: spread={overrides['buy_spreads']}, "
-                     f"SL={overrides['stop_loss']}, TP={overrides['take_profit']}, TL={overrides['time_limit']}")
+    max_workers = config.max_parallel_backtests if hasattr(config, "max_parallel_backtests") else 4
+
+    def task(i, overrides):
+        logger.info(f"[{i + 1}/{len(grid)}] Starting: spread={overrides['buy_spreads']}, SL={overrides['stop_loss']}")
         try:
             result = run_single_backtest(config.api_base_url, base_config, overrides, config)
             metrics = extract_metrics(result)
-            results.append({"params": overrides, "metrics": metrics})
-            successful += 1
-            logger.info(f"  Sharpe={metrics['sharpe_ratio']:.2f}, PnL={metrics['net_pnl']:.2f}, "
-                         f"Executors={metrics['total_executors']}")
+            return {"params": overrides, "metrics": metrics, "success": True}
         except Exception as e:
-            logger.warning(f"  Failed: {e}")
+            logger.warning(f"  Failed {overrides['buy_spreads']}: {e}")
+            return {"params": overrides, "success": False}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(task, i, overrides) for i, overrides in enumerate(grid)]
+        for future in futures:
+            res = future.result()
+            if res["success"]:
+                results.append({"params": res["params"], "metrics": res["metrics"]})
+                successful += 1
+                m = res["metrics"]
+                logger.info(f"  Finished {res['params']['buy_spreads']} -> Sharpe={m['sharpe_ratio']:.2f}")
 
     logger.info(f"Completed {successful}/{len(grid)} runs")
 

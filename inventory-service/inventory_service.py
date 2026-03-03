@@ -32,7 +32,7 @@ class InventoryService(BaseService):
             "account_names": [self.config.account_name],
             "connector_names": [self.config.connector_name],
         }
-        resp = requests.post(url, json=payload, timeout=10)
+        resp = self.session.post(url, json=payload, timeout=10)
         resp.raise_for_status()
         return resp.json()
 
