@@ -10,7 +10,6 @@ def score_token(pair_data, config):
     vol_mcap = volume_24h / mcap if mcap > 0 else 0
 
     if vol_mcap > (config.vol_mcap_threshold * 10):
-        # Extreme volume relative to market cap is likely wash trading
         score -= 5
         breakdown["vol_mcap"] = f"{vol_mcap:.2f} (WASH TRADING SPAM)"
     elif vol_mcap > config.vol_mcap_threshold:
@@ -36,7 +35,6 @@ def score_token(pair_data, config):
         score -= 100
         breakdown["buy_sell_ratio"] = "HONEYPOT (0 sells)"
     elif buy_sell_ratio > (config.buy_sell_ratio_threshold * 5):
-        # Could be an artificial buy bot pumping
         score -= 2
         breakdown["buy_sell_ratio"] = f"{buy_sell_ratio:.2f} (Suspiciously high)"
     elif buy_sell_ratio > config.buy_sell_ratio_threshold:
@@ -62,7 +60,6 @@ def score_token(pair_data, config):
     else:
         breakdown["socials"] = "none"
 
-    # Price momentum scoring
     price_5m = float(pair_data.get("priceChange", {}).get("m5", 0))
     price_1h = float(pair_data.get("priceChange", {}).get("h1", 0))
     price_24h = float(pair_data.get("priceChange", {}).get("h24", 0))
@@ -79,7 +76,6 @@ def score_token(pair_data, config):
     else:
         breakdown["momentum"] = f"5m:{price_5m:+.1f}% 1h:{price_1h:+.1f}% (flat)"
 
-    # Estimated profit potential on $100 (conservative: 50% of 1h trend continuation)
     est_profit_pct = round(max(price_1h * 0.5, 0), 2) if price_1h > 0 else 0
     breakdown["est_profit_pct"] = est_profit_pct
 
