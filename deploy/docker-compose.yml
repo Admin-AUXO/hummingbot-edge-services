@@ -236,7 +236,7 @@ services:
       CORR_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
       CORR_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       CORR_TARGET_PAIR: ${CORR_TARGET_PAIR:-sol_usdc}
-      CORR_REFERENCE_PAIRS: ${CORR_REFERENCE_PAIRS:-["ETHUSDT","BTCUSDT"]}
+      CORR_REFERENCE_PAIRS: "${CORR_REFERENCE_PAIRS:-[\"ETHUSDT\",\"BTCUSDT\"]}"
     depends_on:
       emqx:
         condition: service_healthy

@@ -1,8 +1,11 @@
+import json
 import os
 import sys
 
+from pydantic import field_validator
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from typing import Union
 from shared.base_config import BaseServiceConfig
 
 
@@ -11,8 +14,20 @@ class CorrelationConfig(BaseServiceConfig):
 
     target_pair: str = "sol_usdc"
     target_binance_symbol: str = "SOLUSDT"
-    reference_pairs: list = ["ETHUSDT", "BTCUSDT"]
-    reference_labels: list = ["sol_eth", "sol_btc"]
+    reference_pairs: Union[list, str] = ["ETHUSDT", "BTCUSDT"]
+    reference_labels: Union[list, str] = ["sol_eth", "sol_btc"]
+
+    @field_validator("reference_pairs", "reference_labels", mode="before")
+    @classmethod
+    def parse_list(cls, value):
+        if isinstance(value, str):
+            if value.startswith("[") and value.endswith("]"):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    pass
+            return [s.strip() for s in value.split(",")]
+        return value
 
     candle_interval: str = "5m"
     candle_limit: int = 300

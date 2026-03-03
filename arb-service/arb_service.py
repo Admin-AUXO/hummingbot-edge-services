@@ -36,7 +36,7 @@ class ArbService(BaseService):
                 timeout=15,
             )
             resp.raise_for_status()
-            pairs = resp.json().get("pairs", [])
+            pairs = resp.json().get("pairs") or []
 
             discovered = {}
             for pair in pairs:
@@ -93,7 +93,7 @@ class ArbService(BaseService):
             resp = requests.get(f"{self.config.dex_token_url}{address}", timeout=15)
             resp.raise_for_status()
             data = resp.json()
-            pairs = data.get("pairs", [])
+            pairs = data.get("pairs") or []
             return [p for p in pairs if p.get("chainId") == "solana"]
         except Exception as e:
             self.logger.error(f"DexScreener fetch failed for {address}: {e}")

@@ -52,7 +52,7 @@ def _bar(score, max_score=10):
 
 
 MIN_PROFIT_100 = 10
-MIN_ARB_NET_PROFIT = 0.20
+MIN_ARB_NET_PROFIT = 5.0
 SOLANA_GAS = 0.01
 EST_SLIPPAGE_PCT = 0.3
 
