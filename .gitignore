@@ -5,6 +5,7 @@ __pycache__/
 
 .env
 *.env
+!deploy/.env.example
 
 swarm-service/swarm_state.json
 

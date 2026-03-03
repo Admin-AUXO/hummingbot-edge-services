@@ -1,0 +1,53 @@
+# =============================================================================
+# Hummingbot Edge Services — Shared Dockerfile
+# Builds a single image containing all 20 Python edge services + shared module.
+# Each service is started by specifying the SERVICE_NAME env var at runtime.
+# =============================================================================
+
+FROM python:3.11-slim
+
+# Prevent Python from writing .pyc files and enable unbuffered output for logs
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Install system dependencies (some Python packages need build tools)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python dependencies first (layer cache optimization)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy shared module
+COPY shared/ ./shared/
+
+# Copy all service directories
+COPY alert-service/         ./alert-service/
+COPY alpha-service/         ./alpha-service/
+COPY arb-service/           ./arb-service/
+COPY backtest-service/      ./backtest-service/
+COPY clmm-service/          ./clmm-service/
+COPY correlation-service/   ./correlation-service/
+COPY funding-scanner-service/ ./funding-scanner-service/
+COPY funding-service/       ./funding-service/
+COPY hedge-service/         ./hedge-service/
+COPY inventory-service/     ./inventory-service/
+COPY lab-service/           ./lab-service/
+COPY migration-service/     ./migration-service/
+COPY narrative-service/     ./narrative-service/
+COPY pnl-service/           ./pnl-service/
+COPY regime-service/        ./regime-service/
+COPY rewards-service/       ./rewards-service/
+COPY session-service/       ./session-service/
+COPY swarm-service/         ./swarm-service/
+COPY unlock-service/        ./unlock-service/
+COPY watchlist-service/     ./watchlist-service/
+
+# Entrypoint script that dispatches to the correct service
+COPY deploy/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

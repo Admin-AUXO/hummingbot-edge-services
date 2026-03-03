@@ -1,0 +1,531 @@
+# =============================================================================
+# Hummingbot Full Stack — Unified Docker Compose
+# =============================================================================
+#
+# Deploy via Hostinger Docker Manager → "Compose from URL":
+#   Paste this file's raw GitHub URL, e.g.
+#   https://raw.githubusercontent.com/<user>/<repo>/main/deploy/docker-compose.yml
+#
+# Or deploy manually via SSH:
+#   cd ~/Trading/deploy
+#   docker compose up -d
+#
+# =============================================================================
+
+# ─── Shared anchors for edge services ────────────────────────────────────────
+x-edge-service: &edge-defaults
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  restart: unless-stopped
+  networks:
+    - hbot-net
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "5m"
+      max-file: "3"
+  deploy:
+    resources:
+      limits:
+        memory: 128M
+
+# =============================================================================
+# SERVICES
+# =============================================================================
+services:
+
+  # ─── Infrastructure ─────────────────────────────────────────────────────────
+
+  emqx:
+    container_name: hbot-broker
+    image: emqx:5
+    restart: unless-stopped
+    environment:
+      - EMQX_NAME=emqx
+      - EMQX_HOST=node1.emqx.local
+      - EMQX_CLUSTER__DISCOVERY_STRATEGY=static
+      - EMQX_CLUSTER__STATIC__SEEDS=[emqx@node1.emqx.local]
+      - EMQX_LOADED_PLUGINS="emqx_recon,emqx_retainer,emqx_management,emqx_dashboard"
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+      - emqx-etc:/opt/emqx/etc
+    ports:
+      - "1883:1883"       # MQTT TCP
+      - "8083:8083"       # MQTT WebSocket
+      - "18083:18083"     # EMQX Dashboard
+    networks:
+      hbot-net:
+        aliases:
+          - node1.emqx.local
+    healthcheck:
+      test: ["CMD", "/opt/emqx/bin/emqx_ctl", "status"]
+      interval: 10s
+      timeout: 25s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  postgres:
+    container_name: hbot-postgres
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hummingbot_api
+      POSTGRES_USER: ${POSTGRES_USER:-hbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hummingbot-api}
+      POSTGRES_INITDB_ARGS: --encoding=UTF8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - hbot-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hbot} -d hummingbot_api"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  hummingbot-api:
+    container_name: hbot-api
+    image: hummingbot/hummingbot-api:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - api-bots:/hummingbot-api/bots
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      BROKER_HOST: emqx
+      BROKER_PORT: "1883"
+      BROKER_USERNAME: ${MQTT_USERNAME:-admin}
+      BROKER_PASSWORD: ${MQTT_PASSWORD:-password}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-hbot}:${POSTGRES_PASSWORD:-hummingbot-api}@postgres:5432/hummingbot_api
+      GATEWAY_URL: http://gateway:15888
+      CONFIG_PASSWORD: ${CONFIG_PASSWORD:-admin}
+      USERNAME: ${API_USERNAME:-admin}
+      PASSWORD: ${API_PASSWORD:-admin}
+    networks:
+      - hbot-net
+    depends_on:
+      emqx:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ─── Hummingbot Trading Bot ─────────────────────────────────────────────────
+
+  hummingbot:
+    container_name: hbot-client
+    image: hummingbot/hummingbot:latest
+    volumes:
+      - hbot-conf:/home/hummingbot/conf
+      - hbot-logs:/home/hummingbot/logs
+      - hbot-data:/home/hummingbot/data
+      - hbot-certs:/home/hummingbot/certs
+      - hbot-scripts:/home/hummingbot/scripts
+      - hbot-controllers:/home/hummingbot/controllers
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    tty: true
+    stdin_open: true
+    networks:
+      - hbot-net
+    depends_on:
+      emqx:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  gateway:
+    container_name: hbot-gateway
+    image: hummingbot/gateway:latest
+    restart: always
+    ports:
+      - "15888:15888"
+    volumes:
+      - gw-conf:/home/gateway/conf
+      - gw-logs:/home/gateway/logs
+      - hbot-certs:/home/gateway/certs
+    environment:
+      GATEWAY_PASSPHRASE: ${GATEWAY_PASSPHRASE:-admin}
+      DEV: "true"
+    networks:
+      - hbot-net
+    depends_on:
+      - hummingbot
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ═════════════════════════════════════════════════════════════════════════════
+  # TIER 1 — Independent scanners (MQTT + public APIs only)
+  # ═════════════════════════════════════════════════════════════════════════════
+
+  edge-session:
+    <<: *edge-defaults
+    container_name: edge-session
+    environment:
+      SERVICE_NAME: session
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      SESSION_TARGET_PAIR: ${SESSION_TARGET_PAIR:-sol_usdc}
+      SESSION_POLL_INTERVAL_SECONDS: ${SESSION_POLL_INTERVAL_SECONDS:-60}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-regime:
+    <<: *edge-defaults
+    container_name: edge-regime
+    environment:
+      SERVICE_NAME: regime
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      REGIME_SYMBOL: ${REGIME_SYMBOL:-SOLUSDT}
+      REGIME_POLL_INTERVAL_SECONDS: ${REGIME_POLL_INTERVAL_SECONDS:-300}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-funding:
+    <<: *edge-defaults
+    container_name: edge-funding
+    environment:
+      SERVICE_NAME: funding
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      FUNDING_SYMBOL: ${FUNDING_SYMBOL:-SOLUSDT}
+      FUNDING_POLL_INTERVAL_SECONDS: ${FUNDING_POLL_INTERVAL_SECONDS:-300}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-correlation:
+    <<: *edge-defaults
+    container_name: edge-correlation
+    environment:
+      SERVICE_NAME: correlation
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      CORR_TARGET_PAIR: ${CORR_TARGET_PAIR:-sol_usdc}
+      CORR_REFERENCE_PAIRS: ${CORR_REFERENCE_PAIRS:-ETHUSDT,BTCUSDT}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-alpha:
+    <<: *edge-defaults
+    container_name: edge-alpha
+    environment:
+      SERVICE_NAME: alpha
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      ALPHA_MIN_SCORE: ${ALPHA_MIN_SCORE:-7}
+      ALPHA_MIN_LIQUIDITY: ${ALPHA_MIN_LIQUIDITY:-50000}
+      ALPHA_POLL_INTERVAL_SECONDS: ${ALPHA_POLL_INTERVAL_SECONDS:-900}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-arb:
+    <<: *edge-defaults
+    container_name: edge-arb
+    environment:
+      SERVICE_NAME: arb
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      ARB_MIN_ARB_PCT: ${ARB_MIN_ARB_PCT:-0.5}
+      ARB_MIN_LIQUIDITY: ${ARB_MIN_LIQUIDITY:-5000}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-funding-scanner:
+    <<: *edge-defaults
+    container_name: edge-funding-scanner
+    environment:
+      SERVICE_NAME: funding-scanner
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      FSCAN_HIGH_RATE_THRESHOLD: ${FSCAN_HIGH_RATE_THRESHOLD:-0.0003}
+      FSCAN_MIN_ANNUALIZED_APR: ${FSCAN_MIN_ANNUALIZED_APR:-30}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-narrative:
+    <<: *edge-defaults
+    container_name: edge-narrative
+    environment:
+      SERVICE_NAME: narrative
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      NARR_MIN_VOLUME_SPIKE: ${NARR_MIN_VOLUME_SPIKE:-2.0}
+      NARR_MIN_VOLUME_24H: ${NARR_MIN_VOLUME_24H:-50000}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-rewards:
+    <<: *edge-defaults
+    container_name: edge-rewards
+    environment:
+      SERVICE_NAME: rewards
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      REWARDS_MIN_EFFECTIVE_APR: ${REWARDS_MIN_EFFECTIVE_APR:-20}
+      REWARDS_MAX_RISK_SCORE: ${REWARDS_MAX_RISK_SCORE:-8}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  # ═════════════════════════════════════════════════════════════════════════════
+  # TIER 2 — Needs Hummingbot API running
+  # ═════════════════════════════════════════════════════════════════════════════
+
+  edge-inventory:
+    <<: *edge-defaults
+    container_name: edge-inventory
+    environment:
+      SERVICE_NAME: inventory
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      INV_TARGET_PAIR: ${INV_TARGET_PAIR:-sol_usdc}
+      INV_API_BASE_URL: http://hbot-api:8000
+    depends_on:
+      emqx:
+        condition: service_healthy
+      hummingbot-api:
+        condition: service_started
+
+  edge-hedge:
+    <<: *edge-defaults
+    container_name: edge-hedge
+    environment:
+      SERVICE_NAME: hedge
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      HEDGE_TARGET_PAIR: ${HEDGE_TARGET_PAIR:-sol_usdc}
+      HEDGE_DELTA_THRESHOLD: ${HEDGE_DELTA_THRESHOLD:-0.5}
+      HEDGE_API_BASE_URL: http://hbot-api:8000
+    depends_on:
+      emqx:
+        condition: service_healthy
+      hummingbot-api:
+        condition: service_started
+
+  edge-pnl:
+    <<: *edge-defaults
+    container_name: edge-pnl
+    environment:
+      SERVICE_NAME: pnl
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      PNL_TARGET_PAIR: ${PNL_TARGET_PAIR:-sol_usdc}
+      PNL_POLL_INTERVAL_SECONDS: ${PNL_POLL_INTERVAL_SECONDS:-300}
+      PNL_API_BASE_URL: http://hbot-api:8000
+    depends_on:
+      emqx:
+        condition: service_healthy
+      hummingbot-api:
+        condition: service_started
+
+  # ═════════════════════════════════════════════════════════════════════════════
+  # TIER 3 — Consumes MQTT signals from Tier 1/2 services
+  # ═════════════════════════════════════════════════════════════════════════════
+
+  edge-lab:
+    <<: *edge-defaults
+    container_name: edge-lab
+    environment:
+      SERVICE_NAME: lab
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      LAB_EVAL_INTERVAL_SECONDS: ${LAB_EVAL_INTERVAL_SECONDS:-300}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-alert:
+    <<: *edge-defaults
+    container_name: edge-alert
+    environment:
+      SERVICE_NAME: alert
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      ALERT_TELEGRAM_BOT_TOKEN: ${ALERT_TELEGRAM_BOT_TOKEN:-}
+      ALERT_TELEGRAM_CHAT_ID: ${ALERT_TELEGRAM_CHAT_ID:-}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-swarm:
+    <<: *edge-defaults
+    container_name: edge-swarm
+    environment:
+      SERVICE_NAME: swarm
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      SWARM_MAX_ACTIVE_BOTS: ${SWARM_MAX_ACTIVE_BOTS:-50}
+      SWARM_CAPITAL_PER_BOT: ${SWARM_CAPITAL_PER_BOT:-10}
+      SWARM_AUTO_DEPLOY: ${SWARM_AUTO_DEPLOY:-false}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-clmm:
+    <<: *edge-defaults
+    container_name: edge-clmm
+    environment:
+      SERVICE_NAME: clmm
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      CLMM_TARGET_PAIR: ${CLMM_TARGET_PAIR:-sol_usdc}
+      CLMM_BASE_RANGE_PCT: ${CLMM_BASE_RANGE_PCT:-2.0}
+      CLMM_REBALANCE_THRESHOLD_PCT: ${CLMM_REBALANCE_THRESHOLD_PCT:-70}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-watchlist:
+    <<: *edge-defaults
+    container_name: edge-watchlist
+    environment:
+      SERVICE_NAME: watchlist
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      WL_EVAL_INTERVAL_SECONDS: ${WL_EVAL_INTERVAL_SECONDS:-300}
+      WL_MAX_ARB_TOKENS: ${WL_MAX_ARB_TOKENS:-40}
+      WL_MAX_REWARDS_POOLS: ${WL_MAX_REWARDS_POOLS:-20}
+      WL_MAX_FUNDING_SYMBOLS: ${WL_MAX_FUNDING_SYMBOLS:-20}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  # ═════════════════════════════════════════════════════════════════════════════
+  # TIER 4 — Manual / on-demand (not started by default)
+  # ═════════════════════════════════════════════════════════════════════════════
+
+  edge-unlock:
+    <<: *edge-defaults
+    container_name: edge-unlock
+    profiles: ["tier4"]
+    environment:
+      SERVICE_NAME: unlock
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      UNLOCK_PRE_UNLOCK_HOURS: ${UNLOCK_PRE_UNLOCK_HOURS:-24}
+      UNLOCK_POST_UNLOCK_HOURS: ${UNLOCK_POST_UNLOCK_HOURS:-48}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-backtest:
+    <<: *edge-defaults
+    container_name: edge-backtest
+    profiles: ["tier4"]
+    environment:
+      SERVICE_NAME: backtest
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      BT_API_BASE_URL: http://hbot-api:8000
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+  edge-migration:
+    <<: *edge-defaults
+    container_name: edge-migration
+    profiles: ["tier4"]
+    environment:
+      SERVICE_NAME: migration
+      MQTT_HOST: emqx
+      MQTT_PORT: "1883"
+      MQTT_USERNAME: ${MQTT_USERNAME:-admin}
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
+      MIG_NEW_POOL_MAX_AGE_MINUTES: ${MIG_NEW_POOL_MAX_AGE_MINUTES:-60}
+    depends_on:
+      emqx:
+        condition: service_healthy
+
+# =============================================================================
+# NETWORKS & VOLUMES
+# =============================================================================
+networks:
+  hbot-net:
+    driver: bridge
+
+volumes:
+  # Infrastructure
+  emqx-data:
+  emqx-log:
+  emqx-etc:
+  postgres-data:
+  api-bots:
+  # Hummingbot
+  hbot-conf:
+  hbot-logs:
+  hbot-data:
+  hbot-certs:
+  hbot-scripts:
+  hbot-controllers:
+  # Gateway
+  gw-conf:
+  gw-logs:
