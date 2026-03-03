@@ -4,22 +4,16 @@
 # Each service is started by specifying the SERVICE_NAME env var at runtime.
 # =============================================================================
 
-FROM python:3.11-slim
+FROM python:3.11-bookworm
 
 # Prevent Python from writing .pyc files and enable unbuffered output for logs
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Install system dependencies (numpy/pandas need build tools)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc g++ && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
-# Install Python dependencies first (layer cache optimization)
-# pandas-ta is installed with --no-deps to skip numba/LLVM which are
-# too heavy for slim and not needed for our indicator calculations.
+# Install Python dependencies (layer cache optimization)
+# pandas-ta installed with --no-deps to skip numba (not needed for indicators)
 COPY requirements.txt .
 RUN pip install --no-cache-dir paho-mqtt requests pydantic pydantic-settings numpy pandas pyyaml && \
     pip install --no-cache-dir --no-deps pandas-ta
