@@ -33,40 +33,82 @@ class RewardsService(BaseService):
             self.logger.error(f"Failed to load pools: {e}")
             return []
 
-    def fetch_token_data(self, address):
+    def fetch_token_data_batch(self, addresses):
+        if not addresses:
+            return {}
+        results = {}
+        for i in range(0, len(addresses), 30):
+            chunk = addresses[i:i+30]
+            addr_str = ",".join(chunk)
+            try:
+                resp = requests.get(f"{self.config.dex_token_url}{addr_str}", timeout=15)
+                resp.raise_for_status()
+                data = resp.json()
+                for pair in data.get("pairs", []):
+                    if pair.get("chainId") == "solana":
+                        addr = pair.get("baseToken", {}).get("address", "")
+                        liq = float(pair.get("liquidity", {}).get("usd", 0))
+                        if addr not in results or liq > results[addr].get("liquidity", 0):
+                            results[addr] = {
+                                "volume_24h": float(pair.get("volume", {}).get("h24", 0)),
+                                "liquidity": liq,
+                            }
+            except Exception as e:
+                self.logger.error(f"DexScreener batch fetch failed: {e}")
+        return results
+
+    def fetch_defillama_pools(self):
         try:
-            resp = requests.get(f"{self.config.dex_token_url}{address}", timeout=15)
+            resp = requests.get("https://yields.llama.fi/pools", timeout=30)
             resp.raise_for_status()
-            data = resp.json()
-            pairs = data.get("pairs", [])
-            for pair in pairs:
-                if pair.get("chainId") == "solana":
-                    return {
-                        "volume_24h": float(pair.get("volume", {}).get("h24", 0)),
-                        "liquidity": float(pair.get("liquidity", {}).get("usd", 0)),
-                    }
+            data = resp.json().get("data", [])
+            return [p for p in data if p.get("chain", "").lower() == "solana"]
         except Exception as e:
-            self.logger.error(f"DexScreener fetch failed for {address}: {e}")
-        return {"volume_24h": 0, "liquidity": 0}
+            self.logger.error(f"DeFiLlama fetch failed: {e}")
+            return []
 
     def scan_and_publish(self):
         pools = self.load_pools()
         payloads = []
+        llama_pools = self.fetch_defillama_pools()
+
+        addresses = [p.get("address", "") for p in pools if p.get("address")]
+        market_data_batch = self.fetch_token_data_batch(addresses)
 
         for pool in pools:
             if pool.get("risk_score", 10) > self.config.max_risk_score:
                 continue
 
             address = pool.get("address", "")
-            market_data = self.fetch_token_data(address)
+            market_data = market_data_batch.get(address, {"volume_24h": 0, "liquidity": 0})
             volume_24h = market_data["volume_24h"]
             liquidity = market_data["liquidity"]
 
             if liquidity < self.config.min_liquidity:
                 continue
 
-            fee_apr = estimate_fee_apr(volume_24h, liquidity, pool.get("fee_tier", 0.25))
-            reward_apr = pool.get("reward_apr", 0)
+            dex = pool.get("dex", "").lower()
+            pair_name = pool.get("pair", "")
+            symbol_match = pair_name.replace("/", "-")
+            rev_symbol_match = "-".join(pair_name.split("/")[::-1])
+
+            best_llama = None
+            for lp in llama_pools:
+                lp_project = lp.get("project", "").lower()
+                if dex in lp_project:
+                    lp_symbol = (lp.get("symbol") or "").upper()
+                    if lp_symbol == symbol_match or lp_symbol == rev_symbol_match:
+                        if best_llama is None or lp.get("tvlUsd", 0) > best_llama.get("tvlUsd", 0):
+                            best_llama = lp
+
+            if best_llama:
+                fee_apr = float(best_llama.get("apyBase", 0) or 0)
+                reward_apr = float(best_llama.get("apyReward", 0) or 0)
+                liquidity = max(liquidity, float(best_llama.get("tvlUsd", 0)))
+            else:
+                fee_apr = estimate_fee_apr(volume_24h, liquidity, pool.get("fee_tier", 0.25))
+                reward_apr = pool.get("reward_apr", 0)
+
             effective = calc_effective_apr(fee_apr, reward_apr)
             risk_adjusted = calc_risk_adjusted_apr(effective, pool.get("risk_score", 5))
 

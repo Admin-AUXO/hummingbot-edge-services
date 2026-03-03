@@ -33,6 +33,16 @@ class AlphaService(BaseService):
             self.logger.error(f"DexScreener fetch failed: {e}")
             return []
 
+    def fetch_strict_list(self):
+        try:
+            resp = requests.get("https://token.jup.ag/strict", timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            return {t.get("address") for t in data if isinstance(t, dict)}
+        except Exception as e:
+            self.logger.error(f"Jupiter Strict fetch failed: {e}")
+            return set()
+
     def _cap_seen(self):
         if len(self.seen_signals) > MAX_SEEN:
             self.seen_signals.clear()
@@ -42,24 +52,38 @@ class AlphaService(BaseService):
     def scan_and_publish(self):
         self._cap_seen()
         pairs = self.fetch_solana_pairs()
-        self.logger.info(f"Fetched {len(pairs)} Solana pairs")
+        strict_list = self.fetch_strict_list()
+        self.logger.info(f"Fetched {len(pairs)} Solana pairs, {len(strict_list)} strict tokens")
 
         for pair in pairs:
             pair_addr = pair.get("pairAddress", "")
+            base_token_addr = pair.get("baseToken", {}).get("address", "")
             token_symbol = pair.get("baseToken", {}).get("symbol", "?")
+
+            is_verified = base_token_addr in strict_list
+            if is_verified:
+                token_symbol = f"✅ {token_symbol}"
 
             score, breakdown = score_token(pair, self.config)
 
+            if is_verified:
+                score += 2
+                breakdown["verified"] = "Jupiter Strict List"
+
             if score >= self.config.min_score and pair_addr not in self.seen_signals:
                 payload = build_signal_payload(pair, score, breakdown)
-                topic = f"{self.config.mqtt_topic_prefix}/signal/{token_symbol}"
+                if is_verified:
+                    payload["token"] = token_symbol
+                topic = f"{self.config.mqtt_topic_prefix}/signal/{token_symbol.replace('✅ ', '')}"
                 self.publish(topic, payload)
                 self.seen_signals.add(pair_addr)
                 self.logger.info(f"SIGNAL: {token_symbol} score={score} liq=${payload['liquidity']:,.0f}")
 
             if is_new_listing(pair, self.config) and pair_addr not in self.seen_listings:
                 payload = build_new_listing_payload(pair)
-                topic = f"{self.config.mqtt_topic_prefix}/new_listing/{token_symbol}"
+                if is_verified:
+                    payload["token"] = token_symbol
+                topic = f"{self.config.mqtt_topic_prefix}/new_listing/{token_symbol.replace('✅ ', '')}"
                 self.publish(topic, payload)
                 self.seen_listings.add(pair_addr)
                 self.logger.info(f"NEW LISTING: {token_symbol} age={payload['age_hours']}h liq=${payload['liquidity']:,.0f}")
