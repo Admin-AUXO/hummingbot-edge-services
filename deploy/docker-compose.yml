@@ -34,7 +34,6 @@ x-edge-service: &edge-defaults
 # SERVICES
 # =============================================================================
 services:
-
   # ─── Infrastructure ─────────────────────────────────────────────────────────
 
   emqx:
@@ -52,9 +51,9 @@ services:
       - emqx-log:/opt/emqx/log
       - emqx-etc:/opt/emqx/etc
     ports:
-      - "1883:1883"       # MQTT TCP
-      - "8083:8083"       # MQTT WebSocket
-      - "18083:18083"     # EMQX Dashboard
+      - "1883:1883" # MQTT TCP
+      - "8083:8083" # MQTT WebSocket
+      - "18083:18083" # EMQX Dashboard
     networks:
       hbot-net:
         aliases:
@@ -85,7 +84,8 @@ services:
     networks:
       - hbot-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hbot} -d hummingbot_api"]
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hbot} -d hummingbot_api"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -120,10 +120,19 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'python -c ''import urllib.request; urllib.request.urlopen("http://localhost:8000/health")''',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 1G
 
   # ─── Hummingbot Trading Bot ─────────────────────────────────────────────────
 
@@ -236,7 +245,7 @@ services:
       CORR_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
       CORR_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       CORR_TARGET_PAIR: ${CORR_TARGET_PAIR:-sol_usdc}
-      CORR_REFERENCE_PAIRS: "${CORR_REFERENCE_PAIRS:-[\"ETHUSDT\",\"BTCUSDT\"]}"
+      CORR_REFERENCE_PAIRS: '${CORR_REFERENCE_PAIRS:-["ETHUSDT","BTCUSDT"]}'
     depends_on:
       emqx:
         condition: service_healthy
@@ -336,7 +345,7 @@ services:
       emqx:
         condition: service_healthy
       hummingbot-api:
-        condition: service_started
+        condition: service_healthy
 
   edge-hedge:
     <<: *edge-defaults
@@ -354,7 +363,7 @@ services:
       emqx:
         condition: service_healthy
       hummingbot-api:
-        condition: service_started
+        condition: service_healthy
 
   edge-pnl:
     <<: *edge-defaults
