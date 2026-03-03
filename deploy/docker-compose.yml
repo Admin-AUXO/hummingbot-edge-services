@@ -236,7 +236,7 @@ services:
       CORR_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
       CORR_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       CORR_TARGET_PAIR: ${CORR_TARGET_PAIR:-sol_usdc}
-      CORR_REFERENCE_PAIRS: ${CORR_REFERENCE_PAIRS:-ETHUSDT,BTCUSDT}
+      CORR_REFERENCE_PAIRS: ${CORR_REFERENCE_PAIRS:-["ETHUSDT","BTCUSDT"]}
     depends_on:
       emqx:
         condition: service_healthy
@@ -331,7 +331,7 @@ services:
       INV_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
       INV_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       INV_TARGET_PAIR: ${INV_TARGET_PAIR:-sol_usdc}
-      INV_API_BASE_URL: http://hbot-api:8000
+      INV_API_BASE_URL: http://hummingbot-api:8000
     depends_on:
       emqx:
         condition: service_healthy
@@ -349,7 +349,7 @@ services:
       HEDGE_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       HEDGE_TARGET_PAIR: ${HEDGE_TARGET_PAIR:-sol_usdc}
       HEDGE_DELTA_THRESHOLD: ${HEDGE_DELTA_THRESHOLD:-0.5}
-      HEDGE_API_BASE_URL: http://hbot-api:8000
+      HEDGE_API_BASE_URL: http://hummingbot-api:8000
     depends_on:
       emqx:
         condition: service_healthy
@@ -367,7 +367,7 @@ services:
       PNL_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
       PNL_TARGET_PAIR: ${PNL_TARGET_PAIR:-sol_usdc}
       PNL_POLL_INTERVAL_SECONDS: ${PNL_POLL_INTERVAL_SECONDS:-300}
-      PNL_API_BASE_URL: http://hbot-api:8000
+      PNL_API_BASE_URL: http://hummingbot-api:8000
     depends_on:
       emqx:
         condition: service_healthy
@@ -486,7 +486,7 @@ services:
       BT_MQTT_PORT: "1883"
       BT_MQTT_USERNAME: ${MQTT_USERNAME:-admin}
       BT_MQTT_PASSWORD: ${MQTT_PASSWORD:-password}
-      BT_API_BASE_URL: http://hbot-api:8000
+      BT_API_BASE_URL: http://hummingbot-api:8000
     depends_on:
       emqx:
         condition: service_healthy

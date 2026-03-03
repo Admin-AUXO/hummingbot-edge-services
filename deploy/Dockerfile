@@ -13,10 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install Python dependencies (layer cache optimization)
-# pandas-ta installed with --no-deps to skip numba (not needed for indicators)
 COPY requirements.txt .
-RUN pip install --no-cache-dir paho-mqtt requests pydantic pydantic-settings numpy pandas pyyaml && \
-    pip install --no-cache-dir --no-deps pandas-ta
+RUN pip install --no-cache-dir paho-mqtt requests pydantic pydantic-settings numpy pandas pyyaml numba pandas-ta
 
 # Copy shared module
 COPY shared/ ./shared/
