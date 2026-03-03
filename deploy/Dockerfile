@@ -4,7 +4,7 @@
 # Each service is started by specifying the SERVICE_NAME env var at runtime.
 # =============================================================================
 
-FROM python:3.11-bookworm
+FROM python:3.12-bookworm
 
 # Prevent Python from writing .pyc files and enable unbuffered output for logs
 ENV PYTHONDONTWRITEBYTECODE=1 \
