@@ -104,7 +104,7 @@ flowchart TD
 
     class DexScreener,Jupiter,Binance,Telegram,OnChain ext;
     class MQTT,DB infra;
-    class API,HBot,Gateway HummingbotStack hbot;
+    class API,HBot,Gateway hbot;
     class Alpha,Regime,Funding,Corr,Scanners tier1;
     class Hedge,Inventory,PnL tier2;
     class Alert,Swarm,Clmm,Lab tier3;
