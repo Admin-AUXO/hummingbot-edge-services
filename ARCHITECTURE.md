@@ -83,8 +83,10 @@ flowchart LR
 
 1. Producers are write-only to MQTT and do not depend on consumers.
 2. Consumers are isolated by topic subscriptions and can scale independently.
-3. `api-extended` services integrate with Hummingbot API without changing default runtime behavior.
-4. Gateway is the on-chain execution boundary for both client and API control paths.
+3. Signal topics are chain-aware (`.../{chain}/...`) for alpha, arb, narrative, and watchlist flows.
+4. Per-chain threshold maps are used for discovery and publish gating to keep Solana stricter while keeping Base/Arbitrum broader.
+5. `api-extended` services integrate with Hummingbot API without changing default runtime behavior.
+6. Gateway is the on-chain execution boundary for both client and API control paths.
 
 ## Flowchart Conventions Used
 

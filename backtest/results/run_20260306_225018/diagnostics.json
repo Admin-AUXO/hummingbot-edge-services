@@ -1,0 +1,590 @@
+{
+  "generated_at": "2026-03-06T17:20:18.486142+00:00",
+  "strategy_diagnostics": [
+    {
+      "strategy_variant": "rsi_trend_v1(rsi_window=75,ema_window=400,rsi_long=55,rsi_short=45,adx_window=75,adx_threshold=22.0)",
+      "strategy": "rsi_trend_v1",
+      "trades": 403,
+      "win_rate": 0.02977667493796526,
+      "total_return": -0.7852516169611714,
+      "net_pnl": -78.52516169611714,
+      "fees_paid": 16.35671215839736,
+      "gas_paid": 40.29999999999985,
+      "total_cost": 56.65671215839721,
+      "cost_to_abs_pnl": 0.7215102896273149,
+      "avg_trades_per_day": 4.477950538215209,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "donchian_breakout_v1(breakout_window=200,ema_window=400,adx_window=75,adx_threshold=22.0,vol_window=150,vol_mult=1.0)",
+      "strategy": "donchian_breakout_v1",
+      "trades": 433,
+      "win_rate": 0.03233256351039261,
+      "total_return": -0.7565022021605836,
+      "net_pnl": -75.65022021605836,
+      "fees_paid": 18.577810030904143,
+      "gas_paid": 43.29999999999968,
+      "total_cost": 61.87781003090382,
+      "cost_to_abs_pnl": 0.8179461983610848,
+      "avg_trades_per_day": 4.811296732127011,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "macd_adx_v1(fast=50,slow=150,signal=30,adx_window=75,adx_threshold=22.0)",
+      "strategy": "macd_adx_v1",
+      "trades": 450,
+      "win_rate": 0.02666666666666667,
+      "total_return": -0.7529117827488273,
+      "net_pnl": -75.29117827488272,
+      "fees_paid": 18.872263972110705,
+      "gas_paid": 44.99999999999958,
+      "total_cost": 63.87226397211029,
+      "cost_to_abs_pnl": 0.8483366237000197,
+      "avg_trades_per_day": 5.0001929086770325,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "supertrend_v1(atr_window=100,multiplier=3.0,adx_window=100,adx_threshold=25.0)",
+      "strategy": "supertrend_v1",
+      "trades": 334,
+      "win_rate": 0.1377245508982036,
+      "total_return": -0.7021221650040482,
+      "net_pnl": -70.21221650040482,
+      "fees_paid": 14.478042945913378,
+      "gas_paid": 33.40000000000024,
+      "total_cost": 47.87804294591362,
+      "cost_to_abs_pnl": 0.6819047358466112,
+      "avg_trades_per_day": 3.7112542922180642,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "macd_adx_v1(fast=100,slow=250,signal=50,adx_window=100,adx_threshold=25.0)",
+      "strategy": "macd_adx_v1",
+      "trades": 321,
+      "win_rate": 0.14018691588785046,
+      "total_return": -0.6850890733132392,
+      "net_pnl": -68.50890733132391,
+      "fees_paid": 13.807549031119692,
+      "gas_paid": 32.100000000000314,
+      "total_cost": 45.907549031120006,
+      "cost_to_abs_pnl": 0.6700960622405078,
+      "avg_trades_per_day": 3.5668042748562834,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "donchian_breakout_v1(breakout_window=300,ema_window=500,adx_window=100,adx_threshold=25.0,vol_window=200,vol_mult=1.2)",
+      "strategy": "donchian_breakout_v1",
+      "trades": 327,
+      "win_rate": 0.12538226299694188,
+      "total_return": -0.6338424575124821,
+      "net_pnl": -63.38424575124821,
+      "fees_paid": 14.572212227860003,
+      "gas_paid": 32.70000000000028,
+      "total_cost": 47.27221222786028,
+      "cost_to_abs_pnl": 0.7458038139852656,
+      "avg_trades_per_day": 3.6334735136386436,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "rsi_trend_v1(rsi_window=100,ema_window=500,rsi_long=58,rsi_short=42,adx_window=100,adx_threshold=25.0)",
+      "strategy": "rsi_trend_v1",
+      "trades": 301,
+      "win_rate": 0.14950166112956811,
+      "total_return": -0.6280785643967175,
+      "net_pnl": -62.807856439671745,
+      "fees_paid": 13.651088589630586,
+      "gas_paid": 30.100000000000293,
+      "total_cost": 43.75108858963088,
+      "cost_to_abs_pnl": 0.6965862404754207,
+      "avg_trades_per_day": 3.344573478915082,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "trend_pullback_v1(fast=100,slow=400,atr_window=75,adx_window=75,adx_threshold=22.0,pullback_atr_mult=1.2)",
+      "strategy": "trend_pullback_v1",
+      "trades": 314,
+      "win_rate": 0.10191082802547771,
+      "total_return": -0.5893140090129029,
+      "net_pnl": -58.93140090129029,
+      "fees_paid": 15.815350949210508,
+      "gas_paid": 31.40000000000031,
+      "total_cost": 47.215350949210816,
+      "cost_to_abs_pnl": 0.8011917284691097,
+      "avg_trades_per_day": 3.4890234962768627,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "donchian_breakout_v1(breakout_window=500,ema_window=600,adx_window=150,adx_threshold=28.0,vol_window=300,vol_mult=1.3)",
+      "strategy": "donchian_breakout_v1",
+      "trades": 170,
+      "win_rate": 0.35294117647058826,
+      "total_return": -0.27188285756626585,
+      "net_pnl": -27.188285756626584,
+      "fees_paid": 9.719599122646068,
+      "gas_paid": 17.000000000000107,
+      "total_cost": 26.719599122646173,
+      "cost_to_abs_pnl": 0.9827614496119462,
+      "avg_trades_per_day": 1.8889617655002124,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "macd_adx_v1(fast=150,slow=350,signal=75,adx_window=150,adx_threshold=28.0)",
+      "strategy": "macd_adx_v1",
+      "trades": 125,
+      "win_rate": 0.344,
+      "total_return": -0.2389208100657353,
+      "net_pnl": -23.892081006573534,
+      "fees_paid": 7.042478266089892,
+      "gas_paid": 12.500000000000043,
+      "total_cost": 19.542478266089937,
+      "cost_to_abs_pnl": 0.8179479326523766,
+      "avg_trades_per_day": 1.388942474632509,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "trend_pullback_v1(fast=150,slow=500,atr_window=100,adx_window=100,adx_threshold=25.0,pullback_atr_mult=1.5)",
+      "strategy": "trend_pullback_v1",
+      "trades": 118,
+      "win_rate": 0.4067796610169492,
+      "total_return": -0.23554126369060802,
+      "net_pnl": -23.554126369060796,
+      "fees_paid": 6.295098979023153,
+      "gas_paid": 11.800000000000033,
+      "total_cost": 18.095098979023184,
+      "cost_to_abs_pnl": 0.768234775321226,
+      "avg_trades_per_day": 1.3111616960530885,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "supertrend_v1(atr_window=150,multiplier=3.5,adx_window=150,adx_threshold=28.0)",
+      "strategy": "supertrend_v1",
+      "trades": 126,
+      "win_rate": 0.3253968253968254,
+      "total_return": -0.22285552596986535,
+      "net_pnl": -22.285552596986534,
+      "fees_paid": 7.046340125519525,
+      "gas_paid": 12.600000000000044,
+      "total_cost": 19.64634012551957,
+      "cost_to_abs_pnl": 0.8815729401377356,
+      "avg_trades_per_day": 1.4000540144295692,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": [
+        "low_hit_rate"
+      ]
+    },
+    {
+      "strategy_variant": "rsi_trend_v1(rsi_window=150,ema_window=600,rsi_long=60,rsi_short=40,adx_window=150,adx_threshold=28.0)",
+      "strategy": "rsi_trend_v1",
+      "trades": 99,
+      "win_rate": 0.35353535353535354,
+      "total_return": -0.15156439039652359,
+      "net_pnl": -15.156439039652355,
+      "fees_paid": 5.719818936960054,
+      "gas_paid": 9.900000000000006,
+      "total_cost": 15.619818936960058,
+      "cost_to_abs_pnl": 1.0305731376674565,
+      "avg_trades_per_day": 1.1000424399089472,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "supertrend_v1(atr_window=200,multiplier=4.0,adx_window=200,adx_threshold=30.0)",
+      "strategy": "supertrend_v1",
+      "trades": 51,
+      "win_rate": 0.47058823529411764,
+      "total_return": -0.06940669608170669,
+      "net_pnl": -6.940669608170666,
+      "fees_paid": 3.0132289134231844,
+      "gas_paid": 5.09999999999999,
+      "total_cost": 8.113228913423175,
+      "cost_to_abs_pnl": 1.168940371959523,
+      "avg_trades_per_day": 0.5666885296500637,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "trend_pullback_v1(fast=200,slow=600,atr_window=150,adx_window=150,adx_threshold=28.0,pullback_atr_mult=2.0)",
+      "strategy": "trend_pullback_v1",
+      "trades": 13,
+      "win_rate": 0.38461538461538464,
+      "total_return": -0.06223331853952829,
+      "net_pnl": -6.223331853952828,
+      "fees_paid": 0.6484306442517136,
+      "gas_paid": 1.3000000000000005,
+      "total_cost": 1.948430644251714,
+      "cost_to_abs_pnl": 0.3130848056920094,
+      "avg_trades_per_day": 0.14445001736178095,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "mean_reversion_v1(window=150,std_mult=2.0,rsi_window=75,rsi_oversold=30,rsi_overbought=70,adx_window=75,adx_max=25.0)",
+      "strategy": "mean_reversion_v1",
+      "trades": 30,
+      "win_rate": 0.6666666666666666,
+      "total_return": -0.05057684537390472,
+      "net_pnl": -5.057684537390472,
+      "fees_paid": 1.5732914948461854,
+      "gas_paid": 2.9999999999999973,
+      "total_cost": 4.573291494846183,
+      "cost_to_abs_pnl": 0.9042263235353518,
+      "avg_trades_per_day": 0.3333461939118022,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "mean_reversion_v1(window=200,std_mult=2.2,rsi_window=100,rsi_oversold=28,rsi_overbought=72,adx_window=100,adx_max=22.0)",
+      "strategy": "mean_reversion_v1",
+      "trades": 9,
+      "win_rate": 0.4444444444444444,
+      "total_return": -0.028393682290825506,
+      "net_pnl": -2.8393682290825524,
+      "fees_paid": 0.5180001861737542,
+      "gas_paid": 0.9000000000000002,
+      "total_cost": 1.4180001861737543,
+      "cost_to_abs_pnl": 0.49940693554633947,
+      "avg_trades_per_day": 0.10000385817354066,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "mean_reversion_v1(window=300,std_mult=2.5,rsi_window=150,rsi_oversold=25,rsi_overbought=75,adx_window=150,adx_max=20.0)",
+      "strategy": "mean_reversion_v1",
+      "trades": 3,
+      "win_rate": 1.0,
+      "total_return": 0.003622897110998391,
+      "net_pnl": 0.362289711099848,
+      "fees_paid": 0.12572772377341052,
+      "gas_paid": 0.3,
+      "total_cost": 0.4257277237734105,
+      "cost_to_abs_pnl": 1.1751029927981556,
+      "avg_trades_per_day": 0.033334619391180216,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "pmm_dynamic(base_spread=0.008,vol_mult=1.5,min_spread=0.004,max_spread=0.04,vol_window=50)",
+      "strategy": "pmm_dynamic",
+      "trades": 57,
+      "win_rate": 0.95,
+      "total_return": 0.00739410769223493,
+      "net_pnl": 0.7394107692234968,
+      "fees_paid": 5.716043719452865,
+      "gas_paid": 5.7,
+      "total_cost": 11.416043719452865,
+      "cost_to_abs_pnl": 15.439379834082743,
+      "avg_trades_per_day": 0.6333577684324241,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "pmm_dynamic(base_spread=0.006,vol_mult=1.8,min_spread=0.003,max_spread=0.03,vol_window=40)",
+      "strategy": "pmm_dynamic",
+      "trades": 77,
+      "win_rate": 0.89,
+      "total_return": 0.00748374514688765,
+      "net_pnl": 0.7483745146887628,
+      "fees_paid": 7.72637383116048,
+      "gas_paid": 7.7,
+      "total_cost": 15.426373831160479,
+      "cost_to_abs_pnl": 20.613173656208836,
+      "avg_trades_per_day": 0.8555885643736256,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "pmm_dynamic(base_spread=0.004,vol_mult=2.0,min_spread=0.002,max_spread=0.02,vol_window=30)",
+      "strategy": "pmm_dynamic",
+      "trades": 182,
+      "win_rate": 0.5958638583638584,
+      "total_return": 0.00816343292417887,
+      "net_pnl": 0.8163432924178835,
+      "fees_paid": 18.258054673512213,
+      "gas_paid": 18.2,
+      "total_cost": 36.45805467351221,
+      "cost_to_abs_pnl": 44.6601999577029,
+      "avg_trades_per_day": 2.022300243064933,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "grid_strike(grid_step=0.012,max_cycles_per_bar=1,vol_window=40)",
+      "strategy": "grid_strike",
+      "trades": 3149,
+      "win_rate": 0.95,
+      "total_return": 0.1655870095477317,
+      "net_pnl": 16.558700954773172,
+      "fees_paid": 347.44803819092783,
+      "gas_paid": 314.9000000000003,
+      "total_cost": 662.3480381909282,
+      "cost_to_abs_pnl": 40.00000000000008,
+      "avg_trades_per_day": 34.99023882094217,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "grid_strike(grid_step=0.008,max_cycles_per_bar=2,vol_window=30)",
+      "strategy": "grid_strike",
+      "trades": 3211,
+      "win_rate": 0.95,
+      "total_return": 0.18819949377717313,
+      "net_pnl": 18.819949377717307,
+      "fees_paid": 397.39797510869323,
+      "gas_paid": 355.40000000000043,
+      "total_cost": 752.7979751086937,
+      "cost_to_abs_pnl": 40.00000000000007,
+      "avg_trades_per_day": 35.679154288359896,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    },
+    {
+      "strategy_variant": "grid_strike(grid_step=0.006,max_cycles_per_bar=2,vol_window=20)",
+      "strategy": "grid_strike",
+      "trades": 3211,
+      "win_rate": 0.95,
+      "total_return": 0.18819949377717313,
+      "net_pnl": 18.819949377717307,
+      "fees_paid": 397.39797510869323,
+      "gas_paid": 355.40000000000043,
+      "total_cost": 752.7979751086937,
+      "cost_to_abs_pnl": 40.00000000000007,
+      "avg_trades_per_day": 35.679154288359896,
+      "rotation_exit_share": 0.0,
+      "halted_due_to_capital": false,
+      "flags": []
+    }
+  ],
+  "reason_breakdown": [
+    {
+      "reason": "mm_cycle",
+      "count": 9887,
+      "win_rate": 0.9938302821887327,
+      "pnl_sum": 1130.0545657307541,
+      "avg_pnl": 0.11429701281791789
+    },
+    {
+      "reason": "stop_loss",
+      "count": 1397,
+      "win_rate": 0.1324266284896206,
+      "pnl_sum": -25094.08998323488,
+      "avg_pnl": -17.962841791864623
+    },
+    {
+      "reason": "trailing_stop",
+      "count": 1328,
+      "win_rate": 0.16114457831325302,
+      "pnl_sum": -22913.941301289462,
+      "avg_pnl": -17.25447387145291
+    },
+    {
+      "reason": "time_limit",
+      "count": 615,
+      "win_rate": 0.15447154471544716,
+      "pnl_sum": -11782.190772081294,
+      "avg_pnl": -19.15803377574194
+    },
+    {
+      "reason": "take_profit",
+      "count": 259,
+      "win_rate": 0.09266409266409266,
+      "pnl_sum": -5765.4591744755735,
+      "avg_pnl": -22.26046013311032
+    },
+    {
+      "reason": "forced_close",
+      "count": 28,
+      "win_rate": 0.42857142857142855,
+      "pnl_sum": -14.049036963709941,
+      "avg_pnl": -0.5017513201324979
+    }
+  ],
+  "token_breakdown": [
+    {
+      "token": "DOGE",
+      "count": 232,
+      "pnl_sum": -4308.996552678501,
+      "avg_pnl": -18.57326100292457
+    },
+    {
+      "token": "TRX",
+      "count": 247,
+      "pnl_sum": -4006.581788260803,
+      "avg_pnl": -16.220978899841306
+    },
+    {
+      "token": "AVAX",
+      "count": 204,
+      "pnl_sum": -3962.1970074347296,
+      "avg_pnl": -19.422534350170242
+    },
+    {
+      "token": "OP",
+      "count": 235,
+      "pnl_sum": -3929.5861383871024,
+      "avg_pnl": -16.721643142072775
+    },
+    {
+      "token": "POL",
+      "count": 226,
+      "pnl_sum": -3909.8876830337945,
+      "avg_pnl": -17.30038797802564
+    },
+    {
+      "token": "BCH",
+      "count": 212,
+      "pnl_sum": -3870.4585293168316,
+      "avg_pnl": -18.256879855268075
+    },
+    {
+      "token": "ETH",
+      "count": 196,
+      "pnl_sum": -3735.7769723658826,
+      "avg_pnl": -19.06008659370348
+    },
+    {
+      "token": "ARB",
+      "count": 194,
+      "pnl_sum": -3704.7893451225964,
+      "avg_pnl": -19.09685229444637
+    },
+    {
+      "token": "ATOM",
+      "count": 169,
+      "pnl_sum": -3471.4254144870406,
+      "avg_pnl": -20.540978783946986
+    },
+    {
+      "token": "SOL",
+      "count": 198,
+      "pnl_sum": -3451.949203455005,
+      "avg_pnl": -17.434086886136388
+    },
+    {
+      "token": "UNI",
+      "count": 209,
+      "pnl_sum": -3449.3035823926957,
+      "avg_pnl": -16.50384489183108
+    },
+    {
+      "token": "ADA",
+      "count": 167,
+      "pnl_sum": -3444.3754456482507,
+      "avg_pnl": -20.625002668552398
+    },
+    {
+      "token": "DOT",
+      "count": 157,
+      "pnl_sum": -3386.080412126988,
+      "avg_pnl": -21.567391160044508
+    },
+    {
+      "token": "APT",
+      "count": 157,
+      "pnl_sum": -3111.3036019919055,
+      "avg_pnl": -19.8172203948529
+    },
+    {
+      "token": "NEAR",
+      "count": 144,
+      "pnl_sum": -3046.6905534659354,
+      "avg_pnl": -21.157573287957884
+    },
+    {
+      "token": "BTC",
+      "count": 156,
+      "pnl_sum": -2518.0703418885337,
+      "avg_pnl": -16.141476550567525
+    },
+    {
+      "token": "XRP",
+      "count": 170,
+      "pnl_sum": -2459.9911042422646,
+      "avg_pnl": -14.470535907307438
+    },
+    {
+      "token": "LTC",
+      "count": 126,
+      "pnl_sum": -2378.1694742227,
+      "avg_pnl": -18.874360906529365
+    },
+    {
+      "token": "LINK",
+      "count": 119,
+      "pnl_sum": -2146.795114418783,
+      "avg_pnl": -18.040295079149438
+    },
+    {
+      "token": "BNB",
+      "count": 109,
+      "pnl_sum": -1277.3020031044841,
+      "avg_pnl": -11.71836700095857
+    },
+    {
+      "token": "PORTFOLIO",
+      "count": 9887,
+      "pnl_sum": 1130.0545657307541,
+      "avg_pnl": 0.11429701281791789
+    }
+  ],
+  "failure_counts": {
+    "overtrading_cost_drag": 0,
+    "low_hit_rate": 10,
+    "rotation_dominant_losses": 0,
+    "capital_halt": 0
+  },
+  "aggregate_findings": [
+    "Low hit rate is a dominant issue for several directional variants."
+  ]
+}

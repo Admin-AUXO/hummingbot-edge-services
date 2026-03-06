@@ -1,0 +1,9 @@
+{
+  "mode": "portfolio",
+  "strategies_tested": 24,
+  "total_trades": 13514,
+  "best_strategy_variant": "grid_strike(grid_step=0.008,max_cycles_per_bar=2,vol_window=30)",
+  "best_total_return": 0.18819949377717313,
+  "best_sharpe": 23.327577421957315,
+  "best_max_drawdown": 0.0
+}

@@ -19,7 +19,7 @@ Hummingbot is a powerful open-source trading bot, but running it out of the box 
 
 ```
 External APIs (free, no keys)              Infrastructure (Docker)
-├── DexScreener (Solana pairs, trending)   ├── EMQX           :1883  (MQTT broker)
+├── DexScreener (multi-chain pairs, trending)   ├── EMQX           :1883  (MQTT broker)
                                            ├── PostgreSQL      :5432  (optional api-extended profile)
                                            ├── Hummingbot API  :8000  (optional api-extended profile)
 Edge Services (Python → MQTT)              └── Gateway         :15888 (DEX routing)
@@ -45,13 +45,13 @@ Edge Services (Python → MQTT)              └── Gateway         :15888 (D
 
 ### 🔍 Auto-Discovery
 
-- **Arb scanner** auto-discovers trending Solana tokens from DexScreener every 30 min
-- **Watchlist service** feeds discoveries back into tracking lists automatically
+- **Arb scanner** auto-discovers trending tokens across Solana, Base, BSC, and Arbitrum
+- **Watchlist service** ingests alpha/narrative/trending signals with per-chain gating and dedupe
 
 ### 💰 Profitability-First
 
-- Arb scanner only reports opportunities netting **$5+ per $100 trade** (after slippage + gas)
-- Net profit scoring system ranks by `spread × liquidity × volume`
+- Arb scanner evaluates opportunities by dynamic slippage + chain-aware gas + per-chain publish gates
+- Signal quality is ranked by spread, effective profit, liquidity, and volume before publishing
 
 ### 🛡️ Scam & Risk Protection
 
@@ -62,8 +62,9 @@ Edge Services (Python → MQTT)              └── Gateway         :15888 (D
 
 ### 🧹 Auto-Cleanup
 
-- Arb signals expire after 10 min (re-appear if still valid)
-- Narrative alerts clear at 5K entries
+- Arb opportunity dedupe uses TTL and per-chain publish caps
+- Narrative alert dedupe uses TTL and chain-aware keys
+- Watchlist stale entries are pruned from live market inactivity checks
 
 ### 📱 Telegram Alerts
 
@@ -109,14 +110,50 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for the full setup guide.
 
 ---
 
+## Backtesting (Real Market Data)
+
+Use the `backtest/` tools to evaluate multiple strategies across token datasets with a Hummingbot-style execution model:
+
+- AMM-style execution costs (DEX fee + slippage + fixed gas)
+- Triple-barrier exits (stop loss, take profit, trailing stop)
+- Time limit + cooldown behavior similar to V2 `PositionExecutor` workflows
+
+```bash
+# 1) Download recent granular candles (5m, last ~3 months) as compressed parquet
+python backtest/fetch_binance_data.py --symbols BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT --interval 5m --days 90 --output-dir backtest/data --output-format parquet --compression zstd
+
+# Fast universe refresh (threaded + batched + auto-throttle on 429)
+python backtest/fetch_binance_data.py --symbols BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,TRXUSDT,LINKUSDT,AVAXUSDT,DOTUSDT,POLUSDT,LTCUSDT,BCHUSDT,ATOMUSDT,NEARUSDT,APTUSDT,ARBUSDT,OPUSDT,UNIUSDT --interval 5m --days 90 --output-dir backtest/data --output-format parquet --compression zstd --workers 8 --batch-size 10 --request-delay 0.03
+
+# 2) Run multi-strategy backtest across all downloaded tokens
+python backtest/backtest_runner.py --data-dir backtest/data --output backtest/results_real.json
+
+# 3) Optional: tune execution/risk assumptions
+python backtest/backtest_runner.py --data-dir backtest/data --dex-fee-bps 25 --slippage-bps 15 --gas-cost 0.05 --stop-loss 0.05 --take-profit 0.15 --time-limit-bars 30 --trailing-activation 0.05 --trailing-delta 0.03 --position-size 0.2 --output backtest/results_real.json
+
+# Realistic small-account mode (defaults are already set):
+# initial_capital=100, cash_reserve_ratio=0.2, min_trade_usd=5, risk_per_trade=0.02
+python backtest/backtest_runner.py --data-dir backtest/data --initial-capital 100 --cash-reserve-ratio 0.2 --min-trade-usd 5 --risk-per-trade 0.02 --output backtest/results_realistic_100.json
+
+# Multi-token portfolio bot mode (holds multiple trades + rotates weaker positions)
+python backtest/backtest_runner.py --mode portfolio --data-dir backtest/data --initial-capital 100 --max-open-trades 3 --max-entries-per-bar 2 --max-rotations-per-bar 1 --rotation-score-threshold 0.001 --output backtest/results_portfolio_optimized.json
+
+# Faster runs (threaded + batched) with Hummingbot-style strategy set
+python backtest/backtest_runner.py --mode portfolio --data-dir backtest/data --strategies hb_macd_trend,hb_bollinger_rsi,sma_cross,mean_reversion --workers 8 --batch-size 8 --output backtest/results_portfolio_optimized.json
+```
+
+Input CSV format supports `timestamp` + `close` at minimum, and also uses `open/high/low/volume` when present for more realistic barrier exits.
+
+---
+
 ## Services Overview
 
 | Service             | What It Does                                            | Data Source              | Poll      |
 | ------------------- | ------------------------------------------------------- | ------------------------ | --------- |
 | **session**         | Detects trading session (ASIA/EU/US/NIGHT)              | UTC clock                | 1 min     |
-| **alpha**           | Discovers & scores trending Solana tokens               | DexScreener              | 15 min    |
+| **alpha**           | Discovers & scores trending multi-chain tokens          | DexScreener              | 15 min    |
 | **arb**             | Cross-DEX spread scanner (40+ tokens)                   | DexScreener              | 30s       |
-| **narrative**       | Tracks narrative momentum (AI, meme, DePIN)             | DexScreener              | 30 min    |
+| **narrative**       | Tracks narrative momentum (multi-chain, per-chain gates) | DexScreener              | 30 min    |
 | **rewards**         | Ranks LP pools by risk-adjusted APR                     | DexScreener              | 1 hr      |
 | **inventory**       | Monitors spot balance & skew (optional `api-extended`)  | Hummingbot API           | 1 min     |
 | **hedge**           | Delta-neutral hedging (optional `api-extended`)         | Hummingbot API           | 30s       |
@@ -133,9 +170,9 @@ Services that use JSON data files auto-reload them each poll cycle. Edit on disk
 
 | File                                   | Service           | Entries                         |      Auto-Discovery       |
 | -------------------------------------- | ----------------- | ------------------------------- | :-----------------------: |
-| `arb-service/tokens.json`              | Arb Scanner       | 40 Solana tokens                | ✅ + DexScreener trending |
+| `arb-service/tokens.json`              | Arb Scanner       | Curated multi-chain token set   | ✅ + DexScreener trending |
 | `watchlist-service/funding_symbols.json` | Watchlist cache | Local optional funding symbol cache |          Static           |
-| `narrative-service/narratives.json`    | Narrative Scanner | 10 categories                   |          Static           |
+| `narrative-service/narratives.json`    | Narrative Scanner | 15 multi-chain categories       |          Static           |
 | `rewards-service/pools.json`           | Rewards Tracker   | 12 pools (Raydium/Orca/Meteora) |     Watchlist service     |
 
 ---
@@ -163,10 +200,12 @@ export ARB_MAX_WORKERS=10
 export ARB_DEX_BATCH_SIZE=30
 export ARB_DISCOVERY_INTERVAL_SECONDS=1800
 export ARB_SEEN_ARB_TTL_SECONDS=600
+export ARB_MIN_PUBLISH_SCORE_JSON='{"solana":18,"base":10,"bsc":12,"arbitrum":10}'
 
 # Narrative
 export NARR_MAX_WORKERS=5
 export NARR_ALERTED_TOKENS_LIMIT=5000
+export NARR_MIN_VOLUME_SPIKE_JSON='{"solana":2.5,"base":1.8,"bsc":2.0,"arbitrum":1.8}'
 export NARR_PREV_VOLUMES_LIMIT=10000
 
 # CLMM
@@ -183,17 +222,17 @@ See [GETTING_STARTED.md](GETTING_STARTED.md) for all prefixes and variables.
 
 ```
 hbot/session/{pair}                   → ASIA / EU / US / NIGHT
-hbot/alpha/signal/{token}             → Scored tokens (score >= 7)
-hbot/alpha/new_listing/{token}        → New pairs <48h, liq >$50K
-hbot/arb/{token}                      → Cross-DEX price discrepancies
-hbot/narrative/{category}/{token}     → Narrative volume spikes
+hbot/alpha/{chain}/signal/{token}             → Scored tokens
+hbot/alpha/{chain}/new_listing/{token}        → New listings
+hbot/arb/{chain}/{token}                      → Cross-DEX price discrepancies
+hbot/narrative/{chain}/{category}/{token}     → Narrative momentum spikes
 hbot/rewards/{token}                  → Per-pool APR rankings
 hbot/inventory/{pair}                 → Skew, kill switch
 hbot/hedge/{pair}                     → Delta, hedge actions
 hbot/analytics/{pair}                 → PnL, win rate, Sharpe
 hbot/clmm/{pair}                      → Range + rebalance signals
-hbot/watchlist/added/{type}/{symbol}  → Token auto-added
-hbot/watchlist/removed/{type}/{symbol}→ Stale token removed
+hbot/watchlist/{chain}/added/{type}/{symbol}  → Token auto-added
+hbot/watchlist/{chain}/removed/{type}/{symbol}→ Stale token removed
 ```
 
 ---

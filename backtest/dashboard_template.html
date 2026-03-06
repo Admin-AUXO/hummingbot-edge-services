@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Backtest Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3;
+      --dim: #8b949e; --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+      --yellow: #d29922; --hover: #1f2937;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); padding: 16px 24px; line-height: 1.5; }
+    h1 { font-size: 22px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+    h1 span { font-size: 12px; color: var(--dim); font-weight: 400; }
+    h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+
+    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .kpi { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+    .kpi-label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-value { font-size: 20px; font-weight: 600; margin-top: 2px; }
+    .kpi-value.positive { color: var(--green); }
+    .kpi-value.negative { color: var(--red); }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    .cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 16px; font-size: 12px; }
+    .cfg-grid dt { color: var(--dim); }
+    .cfg-grid dd { font-weight: 500; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; align-items: flex-end; }
+    .ctrl-group { display: flex; flex-direction: column; }
+    .ctrl-group label { font-size: 11px; color: var(--dim); margin-bottom: 3px; }
+    .ctrl-group input, .ctrl-group select {
+      background: var(--bg); color: var(--text); border: 1px solid var(--border);
+      border-radius: 4px; padding: 5px 8px; font-size: 12px; min-width: 120px;
+    }
+    .ctrl-group input:focus, .ctrl-group select:focus { outline: none; border-color: var(--accent); }
+
+    .table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { background: #1c2128; color: var(--dim); font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 1; cursor: pointer; user-select: none; }
+    th:hover { background: var(--hover); }
+    th, td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+    th:first-child, td:first-child { text-align: left; }
+    tr:hover td { background: rgba(88,166,255,0.04); }
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    .tag { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 500; }
+    .tag-warn { background: rgba(210,153,34,0.15); color: var(--yellow); }
+    .tag-err { background: rgba(248,81,73,0.15); color: var(--red); }
+    .tag-ok { background: rgba(63,185,80,0.1); color: var(--green); }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: -1px; position: relative; z-index: 2; }
+    .tab-btn { padding: 8px 16px; font-size: 12px; font-weight: 500; cursor: pointer; background: transparent; color: var(--dim); border: 1px solid transparent; border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; }
+    .tab-btn:hover { color: var(--text); background: var(--hover); }
+    .tab-btn.active { color: var(--accent); border-color: var(--border); border-bottom-color: var(--card); background: var(--card); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .chart-slot { height: 340px; }
+    .empty-msg { text-align: center; padding: 40px; color: var(--dim); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <h1>Backtest Dashboard <span id="runTimestamp"></span></h1>
+
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <details class="card" style="cursor:pointer">
+    <summary style="font-size:13px;font-weight:600;color:var(--dim)">Configuration</summary>
+    <dl class="cfg-grid" id="cfgGrid" style="margin-top:10px"></dl>
+  </details>
+
+  <div class="tab-bar" id="tabBar">
+    <div class="tab-btn active" data-tab="strategies">Strategies</div>
+    <div class="tab-btn" data-tab="charts">Charts</div>
+    <div class="tab-btn" data-tab="diagnostics">Diagnostics</div>
+    <div class="tab-btn" data-tab="trades">Trades</div>
+  </div>
+
+  <div id="tab-strategies" class="tab-panel active card" style="border-top-left-radius:0">
+    <div class="controls">
+      <div class="ctrl-group"><label>Search</label><input id="stratSearch" type="text" placeholder="strategy name..." /></div>
+      <div class="ctrl-group"><label>Min Return %</label><input id="stratMinRet" type="number" step="any" value="-999" /></div>
+      <div class="ctrl-group"><label>Max DD %</label><input id="stratMaxDD" type="number" step="any" value="999" /></div>
+      <div class="ctrl-group"><label>Sort</label>
+        <select id="stratSort">
+          <option value="ret_desc">Return ↓</option>
+          <option value="ret_asc">Return ↑</option>
+          <option value="sharpe_desc">Sharpe ↓</option>
+          <option value="dd_asc">DD ↑ (lowest)</option>
+          <option value="pf_desc">Profit Factor ↓</option>
+          <option value="expect_desc">Expectancy ↓</option>
+          <option value="trades_desc">Trades ↓</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap"><table><thead id="stratHead"></thead><tbody id="stratBody"></tbody></table></div>
+  </div>
+
+  <div id="tab-charts" class="tab-panel card">
+    <div class="grid-2">
+      <div id="ch_returns" class="chart-slot"></div>
+      <div id="ch_sharpe" class="chart-slot"></div>
+      <div id="ch_drawdown" class="chart-slot"></div>
+      <div id="ch_costs" class="chart-slot"></div>
+      <div id="ch_winrate" class="chart-slot"></div>
+      <div id="ch_token_pnl" class="chart-slot"></div>
+      <div id="ch_reason" class="chart-slot"></div>
+      <div id="ch_flags" class="chart-slot"></div>
+    </div>
+  </div>
+
+  <div id="tab-diagnostics" class="tab-panel card">
+    <div class="controls">
+      <div class="ctrl-group"><label>Flag filter</label><input id="diagFilter" type="text" placeholder="overtrading..." /></div>
+      <div class="ctrl-group"><label>Flagged only</label>
+        <select id="diagFlagged"><option value="no">No</option><option value="yes">Yes</option></select>
+      </div>
+      <div class="ctrl-group"><label>Sort</label>
+        <select id="diagSort">
+          <option value="ret_asc">Return ↑ (worst)</option>
+          <option value="cost_desc">Cost ↓</option>
+          <option value="cost_ratio_desc">Cost/|PnL| ↓</option>
+          <option value="trades_day_desc">Trades/Day ↓</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap"><table><thead id="diagHead"></thead><tbody id="diagBody"></tbody></table></div>
+    <div id="diagFindings" style="margin-top:12px;font-size:12px;color:var(--dim)"></div>
+  </div>
+
+  <div id="tab-trades" class="tab-panel card">
+    <div class="controls">
+      <div class="ctrl-group"><label>Token</label><input id="tradeToken" type="text" placeholder="BTC" /></div>
+      <div class="ctrl-group"><label>Strategy</label><input id="tradeStrat" type="text" placeholder="pmm..." /></div>
+      <div class="ctrl-group"><label>Reason</label><input id="tradeReason" type="text" placeholder="take_profit" /></div>
+      <div class="ctrl-group"><label>Min PnL</label><input id="tradeMinPnl" type="number" step="any" value="-999999" /></div>
+      <div class="ctrl-group"><label>Sort</label>
+        <select id="tradeSort">
+          <option value="pnl_desc">PnL ↓</option>
+          <option value="pnl_asc">PnL ↑</option>
+          <option value="ret_desc">Return % ↓</option>
+          <option value="time_desc">Entry (newest)</option>
+          <option value="time_asc">Entry (oldest)</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap"><table><thead id="tradeHead"></thead><tbody id="tradeBody"></tbody></table></div>
+  </div>
+
+  <script>
+    const overall = __OVERALL_JSON__;
+    const config = __CONFIG_JSON__;
+    const strategyRows = __STRATEGY_ROWS_JSON__;
+    const tokenLabels = __TOKEN_LABELS_JSON__;
+    const tokenValues = __TOKEN_VALUES_JSON__;
+    const rawTrades = __RAW_TRADES_JSON__;
+    const diagnostics = __DIAGNOSTICS_JSON__;
+
+    const fmt = (v,d=2) => v == null ? '—' : Number(v).toFixed(d);
+    const fmtPct = (v,d=2) => v == null ? '—' : Number(v).toFixed(d) + '%';
+    const fmtUsd = (v,d=2) => v == null ? '—' : '$' + Number(v).toFixed(d);
+    const cls = v => v > 0 ? 'positive' : v < 0 ? 'negative' : '';
+    const ts2str = ts => { if (!ts) return '—'; const d = new Date(ts * 1000); return d.toISOString().replace('T',' ').slice(0,19); };
+    const short = (s, n=48) => s && s.length > n ? s.slice(0,n) + '…' : (s || '');
+
+    // KPIs
+    (function() {
+      const best = overall.best_total_return;
+      const kpis = [
+        ['Mode', config.mode || '—', ''],
+        ['Variants Tested', overall.strategies_tested, ''],
+        ['Total Trades', overall.total_trades, ''],
+        ['Best Return', best != null ? fmtPct(best*100) : '—', best > 0 ? 'positive' : 'negative'],
+        ['Best Sharpe', fmt(overall.best_sharpe,3), overall.best_sharpe > 0 ? 'positive' : 'negative'],
+        ['Best Max DD', overall.best_max_drawdown != null ? fmtPct(overall.best_max_drawdown*100) : '—', 'negative'],
+      ];
+      const row = document.getElementById('kpiRow');
+      kpis.forEach(([label, value, c]) => {
+        row.innerHTML += `<div class="kpi"><div class="kpi-label">${label}</div><div class="kpi-value ${c}">${value}</div></div>`;
+      });
+      document.getElementById('runTimestamp').textContent = diagnostics.generated_at ? 'Run: ' + diagnostics.generated_at.slice(0,19).replace('T',' ') : '';
+    })();
+
+    // Config
+    (function() {
+      const grid = document.getElementById('cfgGrid');
+      const skip = new Set(['mode']);
+      Object.entries(config).forEach(([k,v]) => {
+        if (skip.has(k)) return;
+        const label = k.replace(/_/g,' ');
+        const val = Array.isArray(v) ? v.join(', ') : v;
+        grid.innerHTML += `<dt>${label}</dt><dd>${val}</dd>`;
+      });
+    })();
+
+    // Tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Strategy Table
+    const stratCols = [
+      ['Strategy', 'strategy_variant', 'l'],
+      ['Return %', 'total_return_pct', 'r'],
+      ['Sharpe', 'sharpe', 'r'],
+      ['DD %', 'max_drawdown_pct', 'r'],
+      ['Win %', 'win_rate_pct', 'r'],
+      ['PF', 'profit_factor', 'r'],
+      ['Trades', 'trades', 'r'],
+      ['Trd/Day', 'avg_trades_per_day', 'r'],
+      ['Expect', 'expectancy', 'r'],
+      ['PnL/Day', 'pnl_per_day', 'r'],
+      ['Net PnL', 'net_pnl', 'r'],
+      ['Fees', 'fees_paid', 'r'],
+      ['Gas', 'gas_paid', 'r'],
+      ['Equity', 'ending_equity', 'r'],
+    ];
+    document.getElementById('stratHead').innerHTML = '<tr>' + stratCols.map(([h]) => `<th>${h}</th>`).join('') + '</tr>';
+
+    function renderStrats() {
+      const q = document.getElementById('stratSearch').value.toLowerCase();
+      const minR = parseFloat(document.getElementById('stratMinRet').value) || -999;
+      const maxD = parseFloat(document.getElementById('stratMaxDD').value) || 999;
+      const sort = document.getElementById('stratSort').value;
+
+      let rows = strategyRows.filter(r =>
+        (!q || r.strategy_variant.toLowerCase().includes(q)) &&
+        r.total_return_pct >= minR && r.max_drawdown_pct <= maxD
+      );
+
+      const sorters = {
+        ret_desc: (a,b) => b.total_return_pct - a.total_return_pct,
+        ret_asc: (a,b) => a.total_return_pct - b.total_return_pct,
+        sharpe_desc: (a,b) => b.sharpe - a.sharpe,
+        dd_asc: (a,b) => a.max_drawdown_pct - b.max_drawdown_pct,
+        pf_desc: (a,b) => (b.profit_factor||0) - (a.profit_factor||0),
+        expect_desc: (a,b) => (b.expectancy||0) - (a.expectancy||0),
+        trades_desc: (a,b) => b.trades - a.trades,
+      };
+      if (sorters[sort]) rows.sort(sorters[sort]);
+
+      const body = document.getElementById('stratBody');
+      if (!rows.length) { body.innerHTML = '<tr><td colspan="14" class="empty-msg">No strategies match filters</td></tr>'; return; }
+      body.innerHTML = rows.map(r => `<tr>
+        <td style="text-align:left;max-width:280px;overflow:hidden;text-overflow:ellipsis" title="${r.strategy_variant}">${short(r.strategy_variant,44)}</td>
+        <td class="${cls(r.total_return_pct)}">${fmtPct(r.total_return_pct)}</td>
+        <td class="${cls(r.sharpe)}">${fmt(r.sharpe,3)}</td>
+        <td class="negative">${fmtPct(r.max_drawdown_pct)}</td>
+        <td>${fmtPct(r.win_rate_pct,1)}</td>
+        <td>${fmt(r.profit_factor)}</td>
+        <td>${r.trades}</td>
+        <td>${fmt(r.avg_trades_per_day)}</td>
+        <td class="${cls(r.expectancy)}">${fmt(r.expectancy,4)}</td>
+        <td class="${cls(r.pnl_per_day)}">${fmt(r.pnl_per_day,4)}</td>
+        <td class="${cls(r.net_pnl)}">${fmtUsd(r.net_pnl)}</td>
+        <td>${fmt(r.fees_paid)}</td>
+        <td>${fmt(r.gas_paid)}</td>
+        <td>${fmtUsd(r.ending_equity)}</td>
+      </tr>`).join('');
+    }
+    ['stratSearch','stratMinRet','stratMaxDD','stratSort'].forEach(id =>
+      document.getElementById(id).addEventListener('input', renderStrats));
+    renderStrats();
+
+    // Charts
+    const plotCfg = { displayModeBar: false };
+    const dark = { paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+      font: { color: '#8b949e', size: 11 },
+      xaxis: { gridcolor: '#21262d', tickangle: -35 },
+      yaxis: { gridcolor: '#21262d' },
+      margin: { l: 50, r: 20, t: 36, b: 80 },
+    };
+
+    function barChart(el, labels, values, title, color, suffix='') {
+      const colors = values.map(v => v >= 0 ? '#3fb950' : '#f85149');
+      Plotly.newPlot(el, [{
+        x: labels, y: values, type: 'bar',
+        marker: { color: color || colors },
+        text: values.map(v => fmt(v,2) + suffix),
+        textposition: 'outside', textfont: { size: 10, color: '#8b949e' },
+        hovertemplate: '%{x}<br>%{y:.4f}' + suffix + '<extra></extra>',
+      }], { ...dark, title: { text: title, font: { size: 13 } } }, plotCfg);
+    }
+
+    (function() {
+      const names = strategyRows.map(r => short(r.strategy_variant, 32));
+      barChart('ch_returns', names, strategyRows.map(r => r.total_return_pct), 'Total Return %', null, '%');
+      barChart('ch_sharpe', names, strategyRows.map(r => r.sharpe), 'Sharpe Ratio', null);
+      barChart('ch_drawdown', names, strategyRows.map(r => -r.max_drawdown_pct), 'Max Drawdown %', '#f85149', '%');
+      barChart('ch_costs', names, strategyRows.map(r => r.fees_paid + r.gas_paid), 'Total Costs', '#d29922');
+      barChart('ch_winrate', names, strategyRows.map(r => r.win_rate_pct), 'Win Rate %', '#58a6ff', '%');
+
+      if (tokenLabels.length > 0) {
+        const tColors = tokenValues.map(v => v >= 0 ? '#3fb950' : '#f85149');
+        barChart('ch_token_pnl', tokenLabels, tokenValues.map(v => +v.toFixed(4)), 'Token PnL Contribution', tColors);
+      }
+
+      // Exit reason breakdown
+      const reasons = (diagnostics.reason_breakdown || []).slice(0, 10);
+      if (reasons.length) {
+        Plotly.newPlot('ch_reason', [{
+          x: reasons.map(r => r.reason), y: reasons.map(r => r.pnl_sum),
+          type: 'bar', marker: { color: reasons.map(r => r.pnl_sum >= 0 ? '#3fb950' : '#f85149') },
+          text: reasons.map(r => fmt(r.pnl_sum,2)), textposition: 'outside',
+          textfont: { size: 10, color: '#8b949e' },
+        }], { ...dark, title: { text: 'PnL by Exit Reason', font: { size: 13 } } }, plotCfg);
+      }
+
+      // Failure flags
+      const fc = diagnostics.failure_counts || {};
+      const fLabels = Object.keys(fc);
+      const fValues = Object.values(fc);
+      if (fLabels.length) {
+        const fColors = fValues.map(v => v > 0 ? '#f85149' : '#3fb950');
+        Plotly.newPlot('ch_flags', [{
+          x: fLabels, y: fValues, type: 'bar', marker: { color: fColors },
+          text: fValues.map(String), textposition: 'outside',
+          textfont: { size: 10, color: '#8b949e' },
+        }], { ...dark, title: { text: 'Failure Flag Counts', font: { size: 13 } } }, plotCfg);
+      }
+    })();
+
+    // Diagnostics Table
+    const diagData = diagnostics.strategy_diagnostics || [];
+    const diagCols = [
+      ['Strategy', 'strategy_variant', 'l'],
+      ['Return %', 'total_return', 'r'],
+      ['Net PnL', 'net_pnl', 'r'],
+      ['Total Cost', 'total_cost', 'r'],
+      ['Cost/|PnL|', 'cost_to_abs_pnl', 'r'],
+      ['Trd/Day', 'avg_trades_per_day', 'r'],
+      ['Win %', 'win_rate', 'r'],
+      ['Rot Exit %', 'rotation_exit_share', 'r'],
+      ['Flags', 'flags', 'l'],
+    ];
+    document.getElementById('diagHead').innerHTML = '<tr>' + diagCols.map(([h]) => `<th>${h}</th>`).join('') + '</tr>';
+
+    function renderDiag() {
+      const q = document.getElementById('diagFilter').value.toLowerCase();
+      const flagged = document.getElementById('diagFlagged').value === 'yes';
+      const sort = document.getElementById('diagSort').value;
+
+      let rows = diagData.filter(r => {
+        if (flagged && (!r.flags || !r.flags.length)) return false;
+        if (q && !(r.flags || []).some(f => f.toLowerCase().includes(q))) return false;
+        return true;
+      });
+
+      const sorters = {
+        ret_asc: (a,b) => a.total_return - b.total_return,
+        cost_desc: (a,b) => b.total_cost - a.total_cost,
+        cost_ratio_desc: (a,b) => (b.cost_to_abs_pnl||0) - (a.cost_to_abs_pnl||0),
+        trades_day_desc: (a,b) => b.avg_trades_per_day - a.avg_trades_per_day,
+      };
+      if (sorters[sort]) rows.sort(sorters[sort]);
+
+      const body = document.getElementById('diagBody');
+      if (!rows.length) { body.innerHTML = '<tr><td colspan="9" class="empty-msg">No diagnostics match</td></tr>'; return; }
+      body.innerHTML = rows.map(r => {
+        const tags = (r.flags || []).map(f => {
+          const c = f.includes('halt') ? 'tag-err' : 'tag-warn';
+          return `<span class="tag ${c}">${f}</span>`;
+        }).join(' ') || '<span class="tag tag-ok">clean</span>';
+        return `<tr>
+          <td style="text-align:left;max-width:260px;overflow:hidden;text-overflow:ellipsis" title="${r.strategy_variant}">${short(r.strategy_variant,40)}</td>
+          <td class="${cls(r.total_return)}">${fmtPct(r.total_return*100)}</td>
+          <td class="${cls(r.net_pnl)}">${fmtUsd(r.net_pnl)}</td>
+          <td>${fmtUsd(r.total_cost)}</td>
+          <td>${r.cost_to_abs_pnl != null ? fmt(r.cost_to_abs_pnl) + 'x' : '—'}</td>
+          <td>${fmt(r.avg_trades_per_day)}</td>
+          <td>${fmtPct(r.win_rate*100,1)}</td>
+          <td>${fmtPct(r.rotation_exit_share*100,1)}</td>
+          <td style="text-align:left">${tags}</td>
+        </tr>`;
+      }).join('');
+
+      const findings = diagnostics.aggregate_findings || [];
+      document.getElementById('diagFindings').innerHTML = findings.length
+        ? '<strong>Findings:</strong> ' + findings.map(f => `<span style="display:block;margin-top:3px">• ${f}</span>`).join('')
+        : '';
+    }
+    ['diagFilter','diagFlagged','diagSort'].forEach(id =>
+      document.getElementById(id).addEventListener('input', renderDiag));
+    renderDiag();
+
+    // Trades Table
+    const tradeCols = [
+      ['Token', 'token', 'l'],
+      ['Strategy', 'strategy_variant', 'l'],
+      ['Entry', 'entry_timestamp', 'l'],
+      ['Exit', 'exit_timestamp', 'l'],
+      ['PnL', 'pnl', 'r'],
+      ['Return %', 'return_pct', 'r'],
+      ['Reason', 'reason', 'l'],
+    ];
+    document.getElementById('tradeHead').innerHTML = '<tr>' + tradeCols.map(([h]) => `<th>${h}</th>`).join('') + '</tr>';
+
+    function renderTrades() {
+      const tok = document.getElementById('tradeToken').value.toLowerCase();
+      const strat = document.getElementById('tradeStrat').value.toLowerCase();
+      const reason = document.getElementById('tradeReason').value.toLowerCase();
+      const minPnl = parseFloat(document.getElementById('tradeMinPnl').value) || -999999;
+      const sort = document.getElementById('tradeSort').value;
+
+      let rows = rawTrades.filter(r =>
+        (!tok || (r.token||'').toLowerCase().includes(tok)) &&
+        (!strat || (r.strategy_variant||'').toLowerCase().includes(strat)) &&
+        (!reason || (r.reason||'').toLowerCase().includes(reason)) &&
+        r.pnl >= minPnl
+      );
+
+      const sorters = {
+        pnl_desc: (a,b) => b.pnl - a.pnl,
+        pnl_asc: (a,b) => a.pnl - b.pnl,
+        ret_desc: (a,b) => b.return_pct - a.return_pct,
+        time_desc: (a,b) => b.entry_timestamp - a.entry_timestamp,
+        time_asc: (a,b) => a.entry_timestamp - b.entry_timestamp,
+      };
+      if (sorters[sort]) rows.sort(sorters[sort]);
+
+      const MAX = 2000;
+      const limited = rows.slice(0, MAX);
+      const body = document.getElementById('tradeBody');
+      if (!limited.length) { body.innerHTML = '<tr><td colspan="7" class="empty-msg">No trades match</td></tr>'; return; }
+      body.innerHTML = limited.map(r => `<tr>
+        <td style="text-align:left">${r.token||'—'}</td>
+        <td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis" title="${r.strategy_variant}">${short(r.strategy_variant,36)}</td>
+        <td style="text-align:left">${ts2str(r.entry_timestamp)}</td>
+        <td style="text-align:left">${ts2str(r.exit_timestamp)}</td>
+        <td class="${cls(r.pnl)}">${fmtUsd(r.pnl,4)}</td>
+        <td class="${cls(r.return_pct)}">${fmtPct(r.return_pct)}</td>
+        <td style="text-align:left">${r.reason||'—'}</td>
+      </tr>`).join('');
+      if (rows.length > MAX) {
+        body.innerHTML += `<tr><td colspan="7" class="empty-msg">Showing ${MAX} of ${rows.length} trades</td></tr>`;
+      }
+    }
+    ['tradeToken','tradeStrat','tradeReason','tradeMinPnl','tradeSort'].forEach(id =>
+      document.getElementById(id).addEventListener('input', renderTrades));
+    renderTrades();
+  </script>
+</body>
+</html>

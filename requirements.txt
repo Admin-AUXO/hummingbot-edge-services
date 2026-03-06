@@ -3,3 +3,4 @@ requests
 pydantic
 pydantic-settings
 pyyaml
+pyarrow

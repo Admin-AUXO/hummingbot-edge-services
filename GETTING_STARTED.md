@@ -78,9 +78,9 @@ Override any setting via environment variables using each service's prefix:
 | Service   | Prefix     | Key Variables                                                       | External API                   |
 | --------- | ---------- | ------------------------------------------------------------------- | ------------------------------ |
 | session   | `SESSION_` | `TARGET_PAIR` (sol_usdc), `POLL_INTERVAL_SECONDS` (60)             | None (UTC clock)               |
-| alpha     | `ALPHA_`   | `MIN_SCORE` (7), `MIN_LIQUIDITY` (50000), `POLL_INTERVAL_SECONDS` (900), `MAX_WORKERS` | DexScreener                    |
-| arb       | `ARB_`     | `MIN_ARB_PCT` (5.3), `MIN_LIQUIDITY` (10000), `TOKENS_FILE` (./tokens.json), `DEX_BATCH_SIZE`, `MAX_WORKERS` | DexScreener (+ auto-discovery) |
-| narrative | `NARR_`    | `MIN_VOLUME_SPIKE` (2.0), `MIN_VOLUME_24H` (50000), `NARRATIVES_FILE`, `MAX_WORKERS` | DexScreener                    |
+| alpha     | `ALPHA_`   | `MIN_SCORE`, `MIN_SIGNAL_VOLUME_24H_JSON`, `MIN_NEW_LISTING_SCORE_JSON`, `POLL_INTERVAL_SECONDS`, `MAX_WORKERS` | DexScreener                    |
+| arb       | `ARB_`     | `MIN_ARB_PCT_JSON`, `TOKENS_FILE`, `DEX_BATCH_SIZE`, `MIN_PUBLISH_SCORE_JSON`, `MAX_PUBLISH_PER_CYCLE_JSON` | DexScreener (+ auto-discovery) |
+| narrative | `NARR_`    | `MIN_VOLUME_SPIKE_JSON`, `MIN_VOLUME_24H_JSON`, `NARRATIVES_FILE`, `MAX_SIGNALS_PER_CYCLE_JSON`, `MAX_WORKERS` | DexScreener                    |
 | rewards   | `REWARDS_` | `MIN_EFFECTIVE_APR` (20), `POOLS_FILE` (./pools.json), `MAX_RISK_SCORE` (8) | DexScreener                    |
 
 ### Tier 2 — Optional (`api-extended` profile, needs Hummingbot API)
@@ -111,9 +111,11 @@ $env:ARB_MAX_WORKERS="10"
 $env:ARB_DEX_BATCH_SIZE="30"
 $env:ARB_DISCOVERY_INTERVAL_SECONDS="1800"
 $env:ARB_SEEN_ARB_TTL_SECONDS="600"
+$env:ARB_MIN_PUBLISH_SCORE_JSON='{"solana":18,"base":10,"bsc":12,"arbitrum":10}'
 
 $env:NARR_MAX_WORKERS="5"
 $env:NARR_ALERTED_TOKENS_LIMIT="5000"
+$env:NARR_MIN_VOLUME_SPIKE_JSON='{"solana":2.5,"base":1.8,"bsc":2.0,"arbitrum":1.8}'
 
 $env:CLMM_PRICE_SYMBOL="SOLUSDT"
 ```
@@ -169,7 +171,7 @@ cd A:\Trading\watchlist-service;            python watchlist_service.py
 
 1. **EMQX dashboard** → http://localhost:18083 → Monitoring → check topics like `hbot/session/sol_usdc`
 2. **Service logs** → look for `Connected to MQTT` and periodic signal publications
-3. **Alpha test** → run `alpha_service.py`, wait ~15s, confirm `Fetched X Solana pairs`
+3. **Alpha test** → run `alpha_service.py`, wait ~15s, confirm `Fetched X pairs (chain counts...)`
 4. **Alert test** → if Telegram configured, startup message: _"Alert Service Started"_
 
 ---
@@ -182,15 +184,15 @@ cd A:\Trading\watchlist-service;            python watchlist_service.py
 | `hbot/inventory/{pair}`                  | Skew, kill switch, drawdown                  |
 | `hbot/hedge/{pair}`                      | Delta, hedge ratio, order actions            |
 | `hbot/analytics/{pair}`                  | PnL, win rate, Sharpe                        |
-| `hbot/alpha/signal/{token}`              | Scored tokens (score >= 7)                   |
-| `hbot/alpha/new_listing/{token}`         | New pairs <48h, liq >$50K                    |
-| `hbot/arb/{token}`                       | Cross-DEX price discrepancies                |
-| `hbot/narrative/{category}/{token}`      | Narrative volume spikes                      |
+| `hbot/alpha/{chain}/signal/{token}`      | Scored tokens                                |
+| `hbot/alpha/{chain}/new_listing/{token}` | New listings                                 |
+| `hbot/arb/{chain}/{token}`               | Cross-DEX price discrepancies                |
+| `hbot/narrative/{chain}/{category}/{token}` | Narrative volume spikes                   |
 | `hbot/clmm/{pair}`                       | Optimal range + rebalance signals            |
 | `hbot/rewards/{token}`                   | Per-pool APR + risk-adjusted ranking         |
 | `hbot/rewards/summary`                   | Top 5 pools by risk-adjusted APR             |
-| `hbot/watchlist/added/{type}/{symbol}`   | Token auto-added to arb/rewards list         |
-| `hbot/watchlist/removed/{type}/{symbol}` | Stale token auto-removed from list           |
+| `hbot/watchlist/{chain}/added/{type}/{symbol}`   | Token auto-added to arb/rewards list |
+| `hbot/watchlist/{chain}/removed/{type}/{symbol}` | Stale token auto-removed from list   |
 | `hbot/watchlist/status`                  | Watchlist counts (arb, rewards, funding)     |
 
 Alert service subscribes to `hbot/#` and forwards to Telegram.
@@ -201,7 +203,7 @@ Alert service subscribes to `hbot/#` and forwards to Telegram.
 
 ```
 External APIs (free, no keys)          Infrastructure (Docker)
-├── DexScreener (Solana pairs)         ├── EMQX         :1883  (MQTT broker)
+├── DexScreener (multi-chain pairs)    ├── EMQX         :1883  (MQTT broker)
                                        ├── PostgreSQL    :5432  (optional api-extended)
                                        ├── Hummingbot API:8000  (optional api-extended)
 Edge Services (Python → MQTT)          └── Gateway       :15888 (DEX routing)
