@@ -38,6 +38,8 @@ docker compose up -d
 | `hummingbot-postgres` | PostgreSQL  | 5432                    |
 | `hummingbot-api`      | FastAPI     | 8000                    |
 
+> If you're running DEX-lean only, you can skip PostgreSQL/API and start only `deploy` services without `api-extended`.
+
 **Verify:**
 
 - API docs: http://localhost:8000/docs
@@ -76,9 +78,9 @@ Override any setting via environment variables using each service's prefix:
 | Service   | Prefix     | Key Variables                                                       | External API                   |
 | --------- | ---------- | ------------------------------------------------------------------- | ------------------------------ |
 | session   | `SESSION_` | `TARGET_PAIR` (sol_usdc), `POLL_INTERVAL_SECONDS` (60)             | None (UTC clock)               |
-| alpha     | `ALPHA_`   | `MIN_SCORE` (7), `MIN_LIQUIDITY` (50000), `POLL_INTERVAL_SECONDS` (900) | DexScreener                    |
-| arb       | `ARB_`     | `MIN_ARB_PCT` (5.3), `MIN_LIQUIDITY` (10000), `TOKENS_FILE` (./tokens.json) | DexScreener (+ auto-discovery) |
-| narrative | `NARR_`    | `MIN_VOLUME_SPIKE` (2.0), `MIN_VOLUME_24H` (50000), `NARRATIVES_FILE` | DexScreener                    |
+| alpha     | `ALPHA_`   | `MIN_SCORE` (7), `MIN_LIQUIDITY` (50000), `POLL_INTERVAL_SECONDS` (900), `MAX_WORKERS` | DexScreener                    |
+| arb       | `ARB_`     | `MIN_ARB_PCT` (5.3), `MIN_LIQUIDITY` (10000), `TOKENS_FILE` (./tokens.json), `DEX_BATCH_SIZE`, `MAX_WORKERS` | DexScreener (+ auto-discovery) |
+| narrative | `NARR_`    | `MIN_VOLUME_SPIKE` (2.0), `MIN_VOLUME_24H` (50000), `NARRATIVES_FILE`, `MAX_WORKERS` | DexScreener                    |
 | rewards   | `REWARDS_` | `MIN_EFFECTIVE_APR` (20), `POOLS_FILE` (./pools.json), `MAX_RISK_SCORE` (8) | DexScreener                    |
 
 ### Tier 2 — Optional (`api-extended` profile, needs Hummingbot API)
@@ -94,8 +96,27 @@ Override any setting via environment variables using each service's prefix:
 | Service   | Prefix   | Key Variables                                                                                              |
 | --------- | -------- | ---------------------------------------------------------------------------------------------------------- |
 | alert     | `ALERT_` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, per-signal toggles                                               |
-| clmm      | `CLMM_`  | `TARGET_PAIR` (sol_usdc), `BASE_RANGE_PCT` (2.0), `REBALANCE_THRESHOLD_PCT` (70)                           |
+| clmm      | `CLMM_`  | `TARGET_PAIR` (sol_usdc), `PRICE_SYMBOL` (SOLUSDT), `BASE_RANGE_PCT` (2.0), `REBALANCE_THRESHOLD_PCT` (70) |
 | watchlist | `WL_`    | `EVAL_INTERVAL_SECONDS` (300), `MAX_ARB_TOKENS` (40), `MAX_REWARDS_POOLS` (20), `MAX_FUNDING_SYMBOLS` (20) |
+
+### Performance tuning (optional)
+
+Use these env vars to tune runtime throughput:
+
+```powershell
+$env:ALPHA_MAX_WORKERS="6"
+$env:ALPHA_SIGNAL_TTL_SECONDS="7200"
+
+$env:ARB_MAX_WORKERS="10"
+$env:ARB_DEX_BATCH_SIZE="30"
+$env:ARB_DISCOVERY_INTERVAL_SECONDS="1800"
+$env:ARB_SEEN_ARB_TTL_SECONDS="600"
+
+$env:NARR_MAX_WORKERS="5"
+$env:NARR_ALERTED_TOKENS_LIMIT="5000"
+
+$env:CLMM_PRICE_SYMBOL="SOLUSDT"
+```
 
 ---
 

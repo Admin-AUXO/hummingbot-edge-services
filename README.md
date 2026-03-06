@@ -9,7 +9,7 @@
 
 ## What This Is
 
-Hummingbot is a powerful open-source trading bot, but running it out of the box is like driving a race car without a pit crew. These edge services are the pit crew — they monitor markets, detect regimes, find arbitrage, and send you Telegram alerts so you can trade smarter, not harder.
+Hummingbot is a powerful open-source trading bot, but running it out of the box is like driving a race car without a pit crew. These edge services are the pit crew — they monitor markets, score opportunities, find arbitrage, and send you Telegram alerts so you can trade smarter, not harder.
 
 **Every service communicates via MQTT** (EMQX broker), forming a reactive signal mesh. The alert service aggregates everything into Telegram notifications with profitability filtering.
 
@@ -100,6 +100,9 @@ cd session-service && python session_service.py
 cd alpha-service && python alpha_service.py
 cd arb-service && python arb_service.py
 # ... see GETTING_STARTED.md for all services
+
+# Optional: enable API-integrated profile services
+cd deploy && docker compose --profile api-extended up -d
 ```
 
 See [GETTING_STARTED.md](GETTING_STARTED.md) for the full setup guide.
@@ -146,6 +149,31 @@ All services use [pydantic-settings](https://docs.pydantic.dev/latest/concepts/p
 export ARB_MIN_ARB_PCT=3.0           # Lower arb threshold
 export ALERT_TELEGRAM_BOT_TOKEN=... # Your Telegram bot token
 ```
+
+### Performance tuning (algorithmic speedups)
+
+```bash
+# Alpha
+export ALPHA_MAX_WORKERS=6
+export ALPHA_SIGNAL_TTL_SECONDS=7200
+export ALPHA_LISTING_TTL_SECONDS=14400
+
+# Arb
+export ARB_MAX_WORKERS=10
+export ARB_DEX_BATCH_SIZE=30
+export ARB_DISCOVERY_INTERVAL_SECONDS=1800
+export ARB_SEEN_ARB_TTL_SECONDS=600
+
+# Narrative
+export NARR_MAX_WORKERS=5
+export NARR_ALERTED_TOKENS_LIMIT=5000
+export NARR_PREV_VOLUMES_LIMIT=10000
+
+# CLMM
+export CLMM_PRICE_SYMBOL=SOLUSDT
+```
+
+The stack now uses connection pooling + retries for external API calls and supports runtime tuning of worker counts, batch sizes, and cache TTLs.
 
 See [GETTING_STARTED.md](GETTING_STARTED.md) for all prefixes and variables.
 
@@ -211,7 +239,6 @@ The `knowledge-base/` directory contains 16 comprehensive guides covering:
 ├── watchlist-service/       Auto token management
 ├── deploy/                  Docker deployment files
 ├── knowledge-base/          Comprehensive trading guides
-├── tests/                   Test suite
 └── hummingbot-api/          API + EMQX + PostgreSQL compose
 ```
 

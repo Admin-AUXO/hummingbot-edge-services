@@ -15,7 +15,8 @@ Deploy the DEX-lean trading stack to a Hostinger KVM 2 VPS using Docker.
 | `hbot-postgres`     | postgres:16-alpine    | 256 MB      | API profile only           |
 | `hbot-api`          | hummingbot-api:latest | 256 MB      | API profile only           |
 | 3× `edge-*`         | Built from repo       | 128 MB each | API profile only           |
-| **Total (default)** |                       | **~3.3 GB** | Fits in 8 GB with headroom |
+| **Total (default)** |                       | **~3.3 GB** | 11 containers (DEX-lean)   |
+| **Total (extended)**|                       | **~4.2 GB** | 16 containers (+api-extended) |
 
 ---
 
@@ -65,7 +66,7 @@ In Hostinger Docker Manager:
 - All containers should show **Running** (green)
 - Click any container → **Logs** to check for errors
 - EMQX dashboard: `http://<VPS-IP>:18083` (admin / public)
-- API docs: `http://<VPS-IP>:8000/docs`
+- API docs (only with `api-extended`): `http://<VPS-IP>:8000/docs`
 
 ---
 
@@ -161,9 +162,40 @@ docker compose down -v
 cd ~/Trading
 git pull
 cd deploy
-docker compose build     # Rebuild edge service image
-docker compose up -d     # Restart with new code
+docker compose up -d --build --remove-orphans
+
+# Optional API profile rollout
+docker compose --profile api-extended up -d --build
 ```
+
+---
+
+## Performance Knobs
+
+You can tune runtime throughput from `.env`:
+
+```bash
+# Alpha
+ALPHA_MAX_WORKERS=6
+ALPHA_SIGNAL_TTL_SECONDS=7200
+ALPHA_LISTING_TTL_SECONDS=14400
+
+# Arb
+ARB_MAX_WORKERS=10
+ARB_DEX_BATCH_SIZE=30
+ARB_DISCOVERY_INTERVAL_SECONDS=1800
+ARB_SEEN_ARB_TTL_SECONDS=600
+
+# Narrative
+NARR_MAX_WORKERS=5
+NARR_ALERTED_TOKENS_LIMIT=5000
+NARR_PREV_VOLUMES_LIMIT=10000
+
+# CLMM
+CLMM_PRICE_SYMBOL=SOLUSDT
+```
+
+Defaults are tuned for KVM 2. Adjust gradually and monitor with `docker stats`.
 
 ---
 
@@ -186,12 +218,12 @@ Inside the CLI:
 
 ```
 deploy/
-├── docker-compose.yml    ← The unified compose file (20 containers)
+├── docker-compose.yml    ← Unified compose file (11 default, 16 with api-extended)
 ├── Dockerfile            ← Shared image for active edge services
 ├── entrypoint.sh         ← Dispatches to correct service by SERVICE_NAME
 ├── .env.example          ← Template — copy to .env and edit
 ├── .env                  ← Your actual secrets (gitignored)
-└── deploy.sh             ← Alternative: bash script for manual setup
+└── README.md             ← Deployment and operations guide
 ```
 
 ---
@@ -212,11 +244,11 @@ deploy/
 | Port  | Service          | Access              |
 | ----- | ---------------- | ------------------- |
 | 1883  | MQTT (TCP)       | Internal + external |
-| 8000  | Hummingbot API   | REST endpoints      |
+| 8000  | Hummingbot API   | REST endpoints (`api-extended`) |
 | 8083  | MQTT (WebSocket) | For web clients     |
 | 15888 | Gateway          | DEX routing         |
 | 18083 | EMQX Dashboard   | Monitoring          |
-| 5432  | PostgreSQL       | Database            |
+| 5432  | PostgreSQL       | Database (`api-extended`) |
 
 > **Security:** On production, you should restrict access to ports via Hostinger's firewall settings. Only expose what you need externally (typically just SSH + EMQX Dashboard + API).
 
