@@ -192,24 +192,24 @@ Edge services running: core 8 (regime, session, funding, correlation, inventory,
 
 ### 🟡 Scenario D: Full Stack + Orchestration (Multi-chain, VPS)
 
-> Standard VPS, Solana + Arbitrum + Hyperliquid, all 20 services
+> Standard VPS, Solana + Arbitrum + Hyperliquid, full active stack
 
 | Category                        | Cost           |
 | ------------------------------- | -------------- |
 | Software                        | $0             |
 | Server (Hetzner VPS, 8GB)       | $10            |
 | Gas (Solana + Arbitrum)          | $40            |
-| Edge services (all 20)          | $0             |
+| Edge services (active stack)    | $0             |
 | External APIs                   | $0 (free)      |
 | RPC                             | $0 (free tier) |
 | Trading fees (~$500/day volume) | ~$45           |
 | **Total**                       | **~$95/mo**    |
 
-Full stack: core 8 + scanners 7 (alpha, arb, funding-scanner, narrative, rewards, unlock, migration) + orchestration 3 (lab, swarm, clmm) + backtest on-demand.
+Full stack: core 8 + scanners (alpha, arb, funding-scanner, narrative, rewards) + orchestration (clmm, watchlist).
 
 ### 🔴 Scenario E: The "Swarm" (10 Bots + Full Stack on VPS)
 
-> Dedicated VPS, Solana, 10 bot instances managed by swarm-service
+> Dedicated VPS, Solana, 10 bot instances managed by operator rules
 
 | Category                       | Cost             |
 | ------------------------------ | ---------------- |
@@ -217,13 +217,13 @@ Full stack: core 8 + scanners 7 (alpha, arb, funding-scanner, narrative, rewards
 | Server (DigitalOcean, 4 Core)  | $24              |
 | Gas (Solana, 50 TX × 10 bots) | $5               |
 | **Jito MEV Tips** (Sniping)    | **$20-50**       |
-| Edge services (all 20)         | $0               |
+| Edge services (active stack)   | $0               |
 | External APIs                  | $0 (free)        |
 | RPC (Helius Paid Tier)         | $49 (Required)   |
 | Trading fees (~$500/day total) | ~$35             |
 | **Total**                      | **~$133-163/mo** |
 
-Swarm-service manages bot lifecycle (deploy, TTL expiry, loss kills). Alpha-service and narrative-service feed signals. Migration-service detects new pools for sniping.
+Operator-managed lifecycle (deploy, TTL expiry, loss kills). Alpha-service and narrative-service feed signals; pool detection uses manual/external watcher workflow.
 
 ---
 
@@ -300,11 +300,11 @@ Server:    VPS with 24/7 uptime ($5-24/mo, 8GB RAM recommended)
 Strategy:  2-3 controllers + full edge services
            - PMM on SOL/USDC (Solana) + hedge-service (delta-neutral)
            - AMM Arb ETH/USDT (Arbitrum ↔ SushiSwap)
-           - lab-service managing experiment tiers
+           - manual experiment tracking and review
 Services:  Core 8: regime, session, funding, correlation, inventory, hedge, pnl, alert
-           Scanners 7: alpha, arb, funding-scanner, narrative, rewards, unlock, migration
-           Orchestration 3: lab, swarm, clmm
-           On-demand: backtest
+           Scanners: alpha, arb, funding-scanner, narrative, rewards
+           Orchestration: clmm, watchlist
+           Backtesting: manual / notebook workflow
 Capital:   $300-1000
 RPC:       Paid if needed ($49/mo)
 ```
@@ -313,10 +313,10 @@ RPC:       Paid if needed ($49/mo)
 
 - Arb-service catches cross-DEX price gaps in real-time (60s scans)
 - Narrative-service detects which crypto themes are gaining momentum
-- Swarm-service automates multi-bot deployment from alpha signals
+- Manual basket rules manage multi-bot deployment from alpha signals
 - CLMM-service optimizes concentrated liquidity ranges using regime + session data
 - Rewards-service ranks LP pools by risk-adjusted APR
-- Migration-service catches new pools and token events within minutes
+- External pool/event watchers catch new pools and token events
 - Everything publishes to MQTT — alert-service forwards all to Telegram
 
 ---
@@ -345,7 +345,7 @@ RPC:       Paid if needed ($49/mo)
 Absolute minimum to run 1 real bot + edge services for 1 month:
 
   Software:        $0
-  Edge services:   $0  (20 Python services, free APIs)
+  Edge services:   $0  (active Python services, free APIs)
   Server (local):  $0
   Gas (Solana):    $0.50
   External APIs:   $0  (DexScreener, Binance, Telegram — all free)

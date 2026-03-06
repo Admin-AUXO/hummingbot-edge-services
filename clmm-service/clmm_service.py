@@ -3,8 +3,6 @@ import os
 import sys
 import time
 
-import requests
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config import ClmmConfig
@@ -43,11 +41,21 @@ class ClmmService(BaseService):
             self.logger.error(f"Message handler error: {e}")
 
     def fetch_current_price(self):
-        url = "https://api.binance.com/api/v3/ticker/price"
-        params = {"symbol": "SOLUSDT"}
-        resp = self.session.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        return float(resp.json()["price"])
+        urls = [
+            "https://api.binance.com/api/v3/ticker/price",
+            "https://api1.binance.com/api/v3/ticker/price",
+            "https://api2.binance.com/api/v3/ticker/price",
+        ]
+        params = {"symbol": self.config.price_symbol}
+        last_error = None
+        for url in urls:
+            try:
+                resp = self.session.get(url, params=params, timeout=10)
+                resp.raise_for_status()
+                return float(resp.json()["price"])
+            except Exception as e:
+                last_error = e
+        raise RuntimeError(f"Failed to fetch price from Binance endpoints: {last_error}")
 
     def eval_cycle(self):
         price = self.fetch_current_price()

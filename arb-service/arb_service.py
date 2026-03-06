@@ -3,7 +3,6 @@ import os
 import sys
 import time
 
-import requests
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -19,13 +18,26 @@ class ArbService(BaseService):
 
     def __init__(self):
         super().__init__(ArbConfig())
-        self.seen_arbs = TTLCache(600)
+        self.seen_arbs = TTLCache(self.config.seen_arb_ttl_seconds, max_size=self.config.cache_max_size)
         self.last_discovery = 0
 
     def load_tokens(self):
         try:
             with open(self.config.tokens_file, "r") as f:
-                return json.load(f)
+                raw_tokens = json.load(f)
+            if not isinstance(raw_tokens, list):
+                self.logger.error(f"Invalid tokens format in {self.config.tokens_file}: expected list")
+                return []
+            seen_addresses = set()
+            deduped = []
+            for token in raw_tokens:
+                address = token.get("address")
+                symbol = token.get("symbol")
+                if not address or not symbol or address in seen_addresses:
+                    continue
+                seen_addresses.add(address)
+                deduped.append({"symbol": symbol, "address": address})
+            return deduped
         except Exception as e:
             self.logger.error(f"Failed to load tokens: {e}")
             return []
@@ -33,7 +45,8 @@ class ArbService(BaseService):
     def discover_trending_tokens(self):
         try:
             resp = self.session.get(
-                "https://api.dexscreener.com/latest/dex/search?q=SOL",
+                self.config.dex_search_url,
+                params={"q": self.config.dex_search_query},
                 timeout=15,
             )
             resp.raise_for_status()
@@ -75,7 +88,7 @@ class ArbService(BaseService):
         static_addresses = {t["address"] for t in static_tokens}
 
         now = time.time()
-        if now - self.last_discovery > 1800:
+        if now - self.last_discovery > self.config.discovery_interval_seconds:
             dynamic = self.discover_trending_tokens()
             for d in dynamic:
                 if d["address"] not in static_addresses:
@@ -87,23 +100,26 @@ class ArbService(BaseService):
         return getattr(self, "_merged_tokens", static_tokens)
 
     def fetch_all_token_pairs_batch(self, addresses):
+        if not addresses:
+            return {}
         results = {}
-        for i in range(0, len(addresses), 30):
-            batch = addresses[i : i + 30]
-            addr_str = ",".join(batch)
+        batch_size = max(1, min(30, self.config.dex_batch_size))
+        for i in range(0, len(addresses), batch_size):
+            batch = addresses[i : i + batch_size]
             try:
-                resp = self.session.get(f"{self.config.dex_token_url}{addr_str}", timeout=20)
+                url = self._build_dex_tokens_url(batch)
+                resp = self.session.get(url, timeout=20)
                 resp.raise_for_status()
                 data = resp.json()
-                pairs = data.get("pairs") or []
+                pairs = data.get("pairs") if isinstance(data, dict) else data
+                if not pairs:
+                    continue
                 for p in pairs:
                     if p.get("chainId") == "solana":
                         base_addr = p.get("baseToken", {}).get("address", "")
-                        if base_addr not in results:
-                            results[base_addr] = []
-                        results[base_addr].append(p)
+                        results.setdefault(base_addr, []).append(p)
             except Exception as e:
-                self.logger.error(f"Batch fetch failed for addresses {addr_str[:20]}...: {e}")
+                self.logger.error(f"Batch fetch failed at chunk {i}: {e}")
         return results
 
     def _cleanup_seen(self):
@@ -112,12 +128,19 @@ class ArbService(BaseService):
     def on_tick(self):
         self._cleanup_seen()
         tokens = self.get_tokens()
-        
-        addresses = [t["address"] for t in tokens]
+        if not tokens:
+            self.logger.info("Scanned 0 tokens, 0 new opportunities")
+            return
+
+        addresses = list(dict.fromkeys(t["address"] for t in tokens if t.get("address")))
         all_pairs_map = self.fetch_all_token_pairs_batch(addresses)
-        
+        if not all_pairs_map:
+            self.logger.info(f"Scanned {len(tokens)} tokens, 0 new opportunities")
+            return
+
         results = []
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        workers = max(1, min(self.config.max_workers, len(all_pairs_map)))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
             task_map = {
                 executor.submit(find_arb_opportunities, t["symbol"], all_pairs_map.get(t["address"], []), self.config): t
                 for t in tokens if t["address"] in all_pairs_map

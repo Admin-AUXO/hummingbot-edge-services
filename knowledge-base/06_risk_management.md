@@ -206,11 +206,11 @@ Most of this is automated by the edge services via MQTT + Telegram alerts. See [
 □ Review any stopped/failed trades
 □ Check exchange connectivity
 □ Assess market regime                       ← regime-service (auto alerts on change)
-□ Review lab experiments                     ← lab-service (auto-kills, promotion alerts)
+□ Review experiment log                      ← manual weekly review (kill/promote decisions)
 □ Check funding rate opportunities           ← funding-scanner-service (multi-pair scan)
-□ Review alpha signals & new listings        ← alpha-service + swarm-service
+□ Review alpha signals & new listings        ← alpha-service + manual deployment workflow
 □ Check CLMM range utilization              ← clmm-service (auto rebalance alerts)
-□ Review token unlock calendar              ← unlock-service (pre/post spread adjustments)
+□ Review token unlock calendar              ← external unlock calendar workflow
 ```
 
 ### Hummingbot Commands for Monitoring

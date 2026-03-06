@@ -11,7 +11,7 @@ class RewardsConfig(BaseServiceConfig):
     poll_interval_seconds: int = 3600
 
     pools_file: str = "./pools.json"
-    dex_token_url: str = "https://api.dexscreener.com/latest/dex/tokens/"
+    dex_token_url: str = "https://api.dexscreener.com/tokens/v1/solana"
 
     min_effective_apr: float = 20.0
     min_liquidity: float = 10000.0

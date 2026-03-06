@@ -49,7 +49,7 @@ Small trade sizes ($10-$20) are sensitive to gas.
 
 - **Strategy**: Extreme momentum on pool launch.
 - **Time to Double**: **4 - 24 Hours**
-- **Edge service**: `migration-service` detects brand-new pools (<60 min old) on Solana, `alpha-service` scores them — see [15_edge_systems](15_edge_systems.md#system-13-airdrop--migration-monitor--implemented)
+- **Edge workflow**: `alpha-service` scores new listings; pool-launch detection is manual/external script driven — see [15_edge_systems](15_edge_systems.md#system-13-airdrop--migration-monitor--archived)
 - **Risk**: Extreme. Most pools are rugs. Requires splitting $100 into 10-20 "snipes."
 
 ### Scenario E: Leveraged Perps (Hyperliquid)
@@ -86,9 +86,9 @@ Small trade sizes ($10-$20) are sensitive to gas.
 
 Starting with $100, these are the **only** ways to double capital in under 30 days:
 
-### The "Multi-Target Swarm" (Bot Farm)
+### The "Multi-Target Basket" (Bot Farm)
 
-Instead of one bot on SOL/USDC, run **10 separate bot instances** each with $10. The `swarm-service` automates signal evaluation and bot lifecycle management (deploy, TTL expiry, loss kills) — see [15_edge_systems](15_edge_systems.md#system-11-multi-pair-bot-swarm--implemented).
+Instead of one bot on SOL/USDC, run **10 separate bot instances** each with $10. Manage lifecycle manually (deploy, TTL expiry, loss kills) using alerts + checklists — see [15_edge_systems](15_edge_systems.md#system-11-multi-pair-bot-swarm--archived).
 
 - **Target**: Trending micro-caps on Solana.
 - **Exit**: 100% gain (2x) or -20% Stop Loss.
@@ -105,7 +105,7 @@ Deposit $100 into Hyperliquid.
 
 ### "Pump.fun" Graduate Sniping
 
-Monitor tokens graduating to PumpSwap (pump.fun's native DEX, since March 2025) with a custom Hummingbot script. The `migration-service` automates detection of graduating tokens and new pool creation — see [15_edge_systems](15_edge_systems.md#system-13-airdrop--migration-monitor--implemented).
+Monitor tokens graduating to PumpSwap (pump.fun's native DEX, since March 2025) with a custom Hummingbot script. Detection is manual/external-script based in the current stack — see [15_edge_systems](15_edge_systems.md#system-13-airdrop--migration-monitor--archived).
 
 - **Entry**: First block of PumpSwap listing (~$69K market cap graduation threshold).
 - **Exit**: 50% gain trailing stop.
@@ -124,10 +124,10 @@ Use `funding-scanner-service` to find pairs with annualized APR > 30%. Deploy de
 
 ### Narrative Sniping (Momentum + Edge Services)
 
-Combine `narrative-service` (detects volume spikes) + `alpha-service` (scores tokens) + `swarm-service` (manages bot fleet):
+Combine `narrative-service` (detects volume spikes) + `alpha-service` (scores tokens) + manual deployment rules:
 
 - **Capital**: $100 split across 5-10 narrative tokens
-- **Flow**: narrative-service alerts → alpha-service scores → swarm-service recommends deployment
+- **Flow**: narrative-service alerts → alpha-service scores → operator deploys/rotates bots via checklist
 - **Target**: 20-50% on 2-3 winners before narrative peaks
 - **Duration**: **3 - 7 Days** per narrative cycle
 
@@ -137,10 +137,10 @@ Combine `narrative-service` (detects volume spikes) + `alpha-service` (scores to
 
 | Goal | Strategy | Edge Service | Chain | Time to 2x |
 |---|---|---|---|---|
-| **Instant** | Sniping | migration-service | Solana | **< 24 Hours** |
+| **Instant** | Sniping | alpha + manual pool watcher | Solana | **< 24 Hours** |
 | **Aggressive** | 20x Perps | funding-scanner | Hyperliquid | **1 - 2 Days** |
 | **Fast** | Narrative Momentum | narrative + alpha | Solana | **2 - 7 Days** |
-| **Medium** | Bot Swarm | swarm + alpha | Solana | **2 - 14 Days** |
+| **Medium** | Bot Basket | manual ops + alpha | Solana | **2 - 14 Days** |
 | **Steady** | Cross-DEX Arb | arb-service | Solana | **3 - 6 Months** |
 | **Passive** | Funding Harvesting | funding-scanner + hedge | Multi-chain | **2 - 6 Months** |
 | **Yield** | LP Rewards | rewards + clmm | Solana | **3 - 6 Months** |
@@ -155,8 +155,8 @@ Combine `narrative-service` (detects volume spikes) + `alpha-service` (scores to
 - **Never trade without a stop-loss.** One bad trade at 20x leverage = $0 balance.
 - **Use Zero-Fee/Low-Fee chains.** For $100, every $0.10 gas fee is a 0.1% loss of the _entire_ account.
 - **Verify Liquidity.** Do not snipe pools with < $20k liquidity. `alpha-service` enforces $50K minimum by default.
-- **Use lab-service** to track experiments with kill criteria — auto-kills losing experiments before they drain capital.
-- **Use swarm-service** for multi-bot deployments — auto-kills bots exceeding 20% loss or 48h TTL.
+- **Use a weekly experiment log** to track hypotheses with explicit kill criteria.
+- **Use manual bot basket rules** — kill bots exceeding 20% loss or 48h TTL.
 - **Use regime-service** before any trade — wrong regime = guaranteed loss. Alerts on change via Telegram.
 - **Use funding-scanner-service** for delta-neutral plays — only enter when annualized APR > 30%.
-- **Use unlock-service** calendar — avoid providing liquidity during major token unlocks (>2% supply).
+- **Use external unlock calendars** — avoid providing liquidity during major token unlocks (>2% supply).

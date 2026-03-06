@@ -134,9 +134,9 @@ When market is euphoric, perp funding rates go highly positive (longs pay shorts
 
 ---
 
-## System 3: The Lab Framework — IMPLEMENTED
+## System 3: The Lab Framework — ARCHIVED
 
-> **Implementation**: `lab-service/` — MQTT-driven experiment manager. Subscribes to `hbot/analytics/#` for PnL data and `hbot/lab/cmd/#` for commands. Auto-evaluates kill criteria, recommends promotions, persists to `experiments.json`.
+> **Status update (Mar 2026)**: `lab-service/` was removed from the active stack. Keep the framework concept, but run it manually using weekly PnL exports from `pnl-service` and operator-run promotion/kill decisions.
 
 **Problem it solves**: Most traders never find their edge because they never systematically search for it.
 
@@ -157,11 +157,11 @@ EXPLORATION (10% of capital)
 
 ### MQTT Commands
 
-| Command | Topic                  | Payload                                                                                       |
-| ------- | ---------------------- | --------------------------------------------------------------------------------------------- |
-| Create  | `hbot/lab/cmd/create`  | `{hypothesis, pair, tier, capital, config_ref, trial_hours, kill_criteria, success_criteria}` |
-| Kill    | `hbot/lab/cmd/kill`    | `{id, reason}`                                                                                |
-| Promote | `hbot/lab/cmd/promote` | `{id}`                                                                                        |
+| Command | Workflow | Payload |
+| ------- | -------- | ------- |
+| Create  | Spreadsheet / notebook | `{hypothesis, pair, tier, capital, config_ref, trial_hours, kill_criteria, success_criteria}` |
+| Kill    | Manual decision review | `{id, reason}` |
+| Promote | Manual decision review | `{id}` |
 
 ### Auto-Evaluation (every 5 min)
 
@@ -179,7 +179,7 @@ EXPLORATION (10% of capital)
 
 ### Weekly Rotation Protocol
 
-1. **Sunday evening**: Review lab status on `hbot/lab/{pair}`
+1. **Sunday evening**: Review `pnl-service` and alert history for each pair
 2. **Promote**: Send promote command for winning experiments
 3. **Kill**: Auto-killed by service, or manual kill with reason
 4. **Mutate**: Take best Production configs, adjust 1 parameter, deploy to Testing
@@ -348,9 +348,9 @@ Exit when funding rate drops below 0.02% (no longer worth it)
 
 Monitor funding rates at: coinglass.com or Hyperliquid's own dashboard.
 
-### Token Unlock Calendar — IMPLEMENTED
+### Token Unlock Calendar — ARCHIVED
 
-> **Implementation**: `unlock-service/` — reads operator-maintained `unlocks.json`, classifies each entry as PRE_UNLOCK / POST_UNLOCK / UPCOMING / EXPIRED / INSIGNIFICANT. Publishes spread multiplier recommendations to `hbot/unlock/pre/{pair}` and `hbot/unlock/post/{pair}`. Alert-service forwards to Telegram with hours-until/since and spread adjustments. **Auto-cleanup**: expired entries are automatically removed from `unlocks.json` after `post_unlock_hours` (48h).
+> **Status update (Mar 2026)**: `unlock-service/` was removed from the active stack. Keep this as an operator playbook using external unlock calendars and manual spread adjustments.
 
 Large token unlocks create predictable sell pressure:
 
@@ -511,16 +511,16 @@ This is what quantitative hedge funds do. They don't guess — they measure, ite
 
 ---
 
-## System 11: Multi-Pair Bot Swarm — IMPLEMENTED
+## System 11: Multi-Pair Bot Swarm — ARCHIVED
 
-> **Implementation**: `swarm-service/` — subscribes to `hbot/alpha/#`, buffers signals, evaluates deployment eligibility, manages bot lifecycle RECOMMENDED→ACTIVE→EXPIRED/KILLED. Publishes to `hbot/swarm/deploy/{TOKEN}` and `hbot/swarm/status`.
+> **Status update (Mar 2026)**: `swarm-service/` was removed from the active stack. This remains a valid strategy pattern, but deployments are now operator-managed.
 
 **Problem it solves**: Alpha signals arrive faster than humans can deploy bots. The swarm manager evaluates signals and manages a fleet of small bots automatically.
 
 ### How It Works
 
 ```
-[swarm-service] ──subscribes to hbot/alpha/#──>
+[manual bot-basket workflow] ──consumes alpha alerts──>
     │
     ├── Buffers incoming alpha signals
     ├── Every 5min, evaluates pending signals:
@@ -571,27 +571,27 @@ This is what quantitative hedge funds do. They don't guess — they measure, ite
 
 ---
 
-## System 13: Airdrop & Migration Monitor — IMPLEMENTED
+## System 13: Airdrop & Migration Monitor — ARCHIVED
 
-> **Implementation**: `migration-service/` — dual function: monitors operator-maintained events.json for scheduled token events (airdrops, migrations, launches), AND scans DexScreener for brand-new Solana pools (<60min old). Publishes to `hbot/migration/event/{TOKEN}` and `hbot/migration/new_pool/{TOKEN}`. **Auto-cleanup**: expired events are automatically removed from `events.json` after `post_event_hours` (48h).
+> **Status update (Mar 2026)**: `migration-service/` was removed from the active stack. Use an external watcher script or manual dashboard workflow for launch/migration events.
 
 **Problem it solves**: Token migrations, airdrops, and new pool launches create temporary inefficiencies. Most traders miss them entirely or notice hours late.
 
 ### How It Works
 
 ```
-[migration-service] ──polls every 5min──>
+[external watcher/manual workflow] ──polls every 5min──>
     │
     ├── SCHEDULED EVENTS (events.json):
     │   ├── Reads operator-maintained event list (airdrop, migration, launch, listing)
     │   ├── Classifies: UPCOMING (>24h) / ACTIVE (within 24h) / POST_EVENT (0-48h after) / EXPIRED
-    │   └── Publishes: hbot/migration/event/{TOKEN}
+    │   └── Outputs: operator event queue / checklist entries
     │
     └── NEW POOL DETECTION:
         ├── Searches DexScreener for trending Solana tokens
         ├── Filters: pairCreatedAt < 60 minutes ago
         ├── Min thresholds: liquidity > $5K, volume > $1K
-        └── Publishes: hbot/migration/new_pool/{TOKEN}
+        └── Outputs: operator new-pool watchlist entries
 ```
 
 ---
@@ -701,21 +701,21 @@ DexScreener trending ───┘
 | --- | --------------------------- | --------------------- | --------------------------------------------------------------------------- |
 | 1   | Regime Switching            | IMPLEMENTED           | `regime-service/`                                                           |
 | 2   | Delta-Neutral MM            | IMPLEMENTED           | `hedge-service/`                                                            |
-| 3   | Lab Framework               | IMPLEMENTED           | `lab-service/`                                                              |
-| 4   | Backtesting Pipeline        | IMPLEMENTED           | `backtest-service/`                                                         |
+| 3   | Lab Framework               | ARCHIVED              | Manual workflow (no active service)                                         |
+| 4   | Backtesting Pipeline        | ARCHIVED              | Manual/Notebook workflow (no active service)                                |
 | 5   | AI Alpha Pipeline           | IMPLEMENTED (Phase 1) | `alpha-service/`                                                            |
-| 6   | Timing & Niche Edges        | IMPLEMENTED           | `session-service/`, `funding-service/`, `alpha-service/`, `unlock-service/` |
+| 6   | Timing & Niche Edges        | PARTIAL (active/core) | `session-service/`, `funding-service/`, `alpha-service/`                    |
 | 7   | Data Flywheel               | IMPLEMENTED           | `pnl-service/` + `alert-service/`                                           |
 | 8   | Cross-DEX Arb Scanner       | IMPLEMENTED           | `arb-service/`                                                              |
 | 9   | Multi-Pair Funding Scanner  | IMPLEMENTED           | `funding-scanner-service/`                                                  |
 | 10  | Narrative/Social Scanner    | IMPLEMENTED           | `narrative-service/`                                                        |
-| 11  | Multi-Pair Bot Swarm        | IMPLEMENTED (Phase 1) | `swarm-service/`                                                            |
+| 11  | Multi-Pair Bot Swarm        | ARCHIVED              | Manual workflow (no active service)                                         |
 | 12  | CLMM Range Optimizer        | IMPLEMENTED           | `clmm-service/`                                                             |
-| 13  | Airdrop & Migration Monitor | IMPLEMENTED           | `migration-service/`                                                        |
+| 13  | Airdrop & Migration Monitor | ARCHIVED              | Manual workflow (no active service)                                         |
 | 14  | LP Reward Tracker           | IMPLEMENTED           | `rewards-service/`                                                          |
 | 15  | Auto Token Watchlist        | IMPLEMENTED           | `watchlist-service/`                                                        |
 
-Supporting services: `inventory-service/`, `correlation-service/`, `alert-service/` (Telegram alerts for all 15 systems).
+Supporting services: `inventory-service/`, `correlation-service/`, `alert-service/` (Telegram alerts for active systems).
 
 ---
 

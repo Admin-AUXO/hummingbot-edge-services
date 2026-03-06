@@ -18,4 +18,8 @@ class NarrativeConfig(BaseServiceConfig):
     min_price_change_1h: float = 1.0
     min_liquidity: float = 20000.0
 
+    max_workers: int = 5
+    alerted_tokens_limit: int = 5000
+    prev_volumes_limit: int = 10000
+
     model_config = {"env_prefix": "NARR_"}

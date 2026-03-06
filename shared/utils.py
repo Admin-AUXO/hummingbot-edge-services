@@ -57,24 +57,39 @@ def binance_link(symbol):
     return f' <a href="https://www.binance.com/en/futures/{symbol}">[BN]</a>'
 
 class TTLCache:
-    def __init__(self, ttl_seconds: int):
+    def __init__(self, ttl_seconds: int, max_size: int = 20000, cleanup_interval_seconds: int = 60):
         self.ttl = ttl_seconds
+        self.max_size = max_size
+        self.cleanup_interval_seconds = cleanup_interval_seconds
         self._data = {}
+        self._next_cleanup = 0.0
 
     def add(self, key):
-        self._data[key] = time.time()
+        now = time.time()
+        self._data[key] = now
+        if len(self._data) > self.max_size:
+            self.clear_expired(now=now, force=True)
+            overflow = len(self._data) - self.max_size
+            if overflow > 0:
+                for stale_key, _ in sorted(self._data.items(), key=lambda item: item[1])[:overflow]:
+                    self._data.pop(stale_key, None)
 
     def __contains__(self, key):
-        if key not in self._data: return False
+        if key not in self._data:
+            return False
         if time.time() - self._data[key] > self.ttl:
             del self._data[key]
             return False
         return True
 
-    def clear_expired(self):
-        now = time.time()
+    def clear_expired(self, now=None, force=False):
+        now = time.time() if now is None else now
+        if not force and now < self._next_cleanup:
+            return
         expired = [k for k, v in self._data.items() if now - v > self.ttl]
-        for k in expired: del self._data[k]
+        for k in expired:
+            del self._data[k]
+        self._next_cleanup = now + self.cleanup_interval_seconds
 
     def __len__(self):
         return len(self._data)

@@ -5,7 +5,6 @@ def group_pairs_by_dex(pairs, config):
     by_dex = {}
     now_ms = time.time() * 1000
     for pair in pairs:
-        # Optimization: Pull liquidity first as it's the primary filter
         liq_data = pair.get("liquidity", {})
         liq = float(liq_data.get("usd", 0))
         if liq < config.min_liquidity: continue

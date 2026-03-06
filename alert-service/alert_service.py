@@ -14,12 +14,10 @@ from shared.base_service import BaseService
 from shared.utils import (
     TTLCache,
     bar,
-    binance_link,
     dex_link,
     fmt_hours,
     fmt_pct,
     fmt_price,
-    fmt_ts,
     fmt_usd,
     rank_emoji,
     sign,
@@ -43,25 +41,16 @@ class AlertService(BaseService):
         self.executor = ThreadPoolExecutor(max_workers=4)
         
         self.handlers = {
-            "/regime/": self._handle_regime,
-            "/correlation/": self._handle_correlation,
             "/inventory/": self._handle_inventory,
             "/session/": self._handle_session,
-            "/funding_scan/": self._handle_funding_scan,
-            "/funding/": self._handle_funding,
             "/analytics/": self._handle_analytics,
-            "/backtest/": self._handle_backtest,
             "/hedge/": self._handle_hedge,
             "/watchlist/": self._handle_watchlist,
             "/clmm/": self._handle_clmm,
             "/alpha/": self._handle_alpha,
-            "/unlock/": self._handle_unlock,
             "/arb/": self._handle_arb,
             "/narrative/": self._handle_narrative,
-            "/swarm/": self._handle_swarm,
-            "/migration/": self._handle_migration,
             "/rewards/": self._handle_rewards,
-            "/lab/": self._handle_lab,
         }
 
     def _should_alert(self, key, current, config_toggle):
@@ -104,80 +93,6 @@ class AlertService(BaseService):
             resp.raise_for_status()
         except Exception as e:
             self.logger.error(f"Telegram send failed: {e}")
-
-    def _handle_regime(self, data, topic):
-        current = data.get("regime")
-        ok, prev = self._should_alert(f"regime:{topic}", current, "alert_on_regime_change")
-        if ok:
-            symbol = data.get("symbol", topic.split("/")[-1])
-            natr = float(data.get("natr", 0))
-            bbw = float(data.get("bb_width", 0))
-            vol_label = "HIGH" if natr > 0.02 else "LOW" if natr < 0.008 else "MID"
-            regime_info = {
-                "UPTREND": {
-                    "hint": "Tighten buys, widen sells — ride the trend",
-                    "profit": f"Momentum plays: {fmt_pct(natr*500)}-{fmt_pct(natr*1500)} per swing",
-                    "action": "BUY bias | Alpha & narrative signals high-value",
-                },
-                "DOWNTREND": {
-                    "hint": "Widen buys, tighten sells — shed inventory",
-                    "profit": "Short bias: funding rates usually high",
-                    "action": "SELL bias | Watch funding-scan for delta-neutral plays",
-                },
-                "SIDEWAYS": {
-                    "hint": "Symmetric tight spreads — best for market making",
-                    "profit": f"PMM profit: {fmt_pct(natr*200)}-{fmt_pct(natr*500)} per fill cycle",
-                    "action": "NEUTRAL | Tighten spreads, increase order frequency",
-                },
-            }.get(current, {"hint": "Monitor conditions", "profit": "Unknown", "action": "Hold"})
-            self.send_telegram(
-                f"📊 <b>Regime Change — {symbol}</b>{binance_link(symbol)}\n"
-                f"{prev} → <b>{current}</b>\n"
-                f"Volatility: {fmt_pct(natr*100)} NATR ({vol_label}) | BBW: {bbw:.4f}\n"
-                f"<i>{regime_info['hint']}</i>\n"
-                f"💰 {regime_info['profit']}\n"
-                f"⚡ Action: {regime_info['action']}"
-            )
-
-    def _handle_correlation(self, data, topic):
-        current = data.get("signal")
-        ok, prev = self._should_alert(f"corr:{topic}", current, "alert_on_correlation_change")
-        if ok:
-            target = data.get("target", topic.split("/")[-1])
-            bsym = data.get("target_binance", "SOLUSDT")
-            avg_z, avg_corr = float(data.get("avg_z_score", 0)), float(data.get("avg_correlation", 0))
-            bias = float(data.get("spread_bias", 0))
-            z_scores = data.get("z_scores", {})
-            z_parts = [f"{k}: {v:+.2f}" for k, v in sorted(z_scores.items(), key=lambda x: abs(x[1]), reverse=True)[:3]]
-            z_detail = " | ".join(z_parts) if z_parts else "N/A"
-            bias_dir = "BUY wider" if bias > 0 else "SELL wider" if bias < 0 else "neutral"
-            corr_action = {
-                "DIVERGING": {
-                    "hint": "Pairs diverging — mean reversion opportunity",
-                    "profit": f"Est. reversion: {fmt_pct(abs(avg_z)*0.5)} if z-score normalizes",
-                    "action": "Look for arb/spread trades between correlated pairs",
-                },
-                "CONVERGING": {
-                    "hint": "Pairs re-aligning — trend confirmation",
-                    "profit": "Trend likely to continue — momentum trades aligned",
-                    "action": "Follow regime direction, increase position confidence",
-                },
-                "NEUTRAL": {
-                    "hint": "Normal correlation — no cross-pair edge",
-                    "profit": "Standard conditions",
-                    "action": "Use other signals for direction",
-                },
-            }.get(current, {"hint": "", "profit": "", "action": "Monitor"})
-            self.send_telegram(
-                f"🔗 <b>Correlation — {target}</b>{binance_link(bsym)}\n"
-                f"{prev} → <b>{current}</b>\n"
-                f"Avg Z: {avg_z:+.3f} | Avg Corr: {avg_corr:.3f}\n"
-                f"Top Z-scores: {z_detail}\n"
-                f"Skew bias: {bias:+.4f} ({bias_dir})\n"
-                f"<i>{corr_action['hint']}</i>\n"
-                f"💰 {corr_action['profit']}\n"
-                f"⚡ Strategy: {corr_action['action']}"
-            )
 
     def _handle_inventory(self, data, topic):
         key_signal = f"inv:{topic}"
@@ -257,32 +172,6 @@ class AlertService(BaseService):
                 f"⚡ {strategy}"
             )
 
-    def _handle_funding(self, data, topic):
-        current = data.get("signal")
-        ok, prev = self._should_alert(f"funding:{topic}", current, "alert_on_funding_change")
-        if ok:
-            target = data.get("target", topic.split("/")[-1])
-            symbol = data.get("symbol", target.upper().replace("_", ""))
-            rate = float(data.get("funding_rate", 0))
-            apr = float(data.get("annualized_rate", 0))
-            bias = float(data.get("spread_bias", 0))
-            next_ts = data.get("next_funding_time", 0)
-            direction = "Shorts pay longs" if rate > 0 else "Longs pay shorts"
-            per_8h_bps = rate * 10000
-            earn_100_8h = abs(rate) * 100
-            earn_100_day = earn_100_8h * 3
-            earn_100_month = earn_100_day * 30
-            if earn_100_month < MIN_PROFIT_100:
-                return
-            self.send_telegram(
-                f"💰 <b>Funding — {target}</b>{binance_link(symbol)}\n"
-                f"{prev} → <b>{current}</b>\n"
-                f"Rate: {rate:.6f} ({per_8h_bps:+.2f} bps/8h)\n"
-                f"Annual: <b>{fmt_pct(apr)}</b> | {direction}\n"
-                f"Income ($100): {fmt_usd(earn_100_8h)}/8h | {fmt_usd(earn_100_day)}/day\n"
-                f"Skew bias: {bias:+.4f} | Next: {fmt_ts(next_ts)}"
-            )
-
     def _handle_analytics(self, data, topic):
         if not self.config.alert_on_analytics:
             return
@@ -331,39 +220,6 @@ class AlertService(BaseService):
                 + (f"\n<b>Top Regimes:</b>\n{regime_str}" if regime_str else "")
             )
 
-    def _handle_backtest(self, data, topic):
-        if not self.config.alert_on_backtest:
-            return
-        target = data.get("target", "?")
-        tested = int(data.get("total_configs_tested", 0))
-        successful = int(data.get("successful_runs", 0))
-        success_rate = (successful / tested * 100) if tested > 0 else 0
-        top = data.get("top_config")
-
-        if top:
-            params = top.get("params", {})
-            sharpe = float(top.get("sharpe_ratio", 0))
-            pnl = float(top.get("net_pnl", 0))
-            pnl_emoji = "🟢" if pnl > 0 else "🔴"
-            accuracy = float(top.get("accuracy", 0))
-            time_limit = params.get("time_limit", "?")
-            profit_factor = float(top.get("profit_factor", 1))
-            self.send_telegram(
-                f"🧪 <b>Backtest — {target}</b>\n"
-                f"Tested: {tested} configs | Profitable: <b>{successful}</b> ({success_rate:.0f}%)\n"
-                f"\n🏆 <b>Best Config:</b>\n"
-                f"  Buy/Sell spreads: {params.get('buy_spreads','?')} / {params.get('sell_spreads','?')}\n"
-                f"  SL: {params.get('stop_loss','?')} | TP: {params.get('take_profit','?')} | TTL: {time_limit}s\n"
-                f"  {pnl_emoji} PnL: <b>{fmt_usd(pnl)}</b> | Sharpe: {sharpe:.2f} | PF: {profit_factor:.2f}\n"
-                f"  Accuracy: {accuracy:.1%}"
-            )
-        else:
-            self.send_telegram(
-                f"🧪 <b>Backtest — {target}</b>\n"
-                f"⚠️ Tested {tested} configs — <b>no profitable setups found</b>\n"
-                f"<i>Consider wider spread range or longer time limits</i>"
-            )
-
     def _handle_hedge(self, data, topic):
         current = data.get("status")
         ok, prev = self._should_alert(f"hedge:{topic}", current, "alert_on_hedge")
@@ -393,57 +249,6 @@ class AlertService(BaseService):
                 f"Action: <b>{action}</b> | Ratio → {ratio:.2f}\n"
                 f"Net Delta: {delta:+.4f} ({delta_pct:+.1f}%)"
             )
-
-    def _handle_lab(self, data, topic):
-        if not self.config.alert_on_lab:
-            return
-        active = data.get("active_experiments", [])
-        by_status = data.get("by_status", {})
-        by_tier = data.get("by_tier", {})
-        killed = by_status.get("KILLED", 0)
-        running = by_status.get("RUNNING", 0)
-        pending = by_status.get("PENDING", 0)
-
-        key_killed = f"lab_killed:{topic}"
-        prev_killed = self.state.get(key_killed, 0)
-
-        if killed > prev_killed:
-            new_kills = killed - prev_killed
-            killed_list = [e for e in active if e.get("status") == "KILLED"][-new_kills:]
-            kill_lines = "\n".join(
-                f"  ❌ {e.get('pair','?')} T{e.get('tier','?')}: {fmt_usd(e.get('pnl',0))} over {e.get('days',0)}d"
-                for e in killed_list
-            ) if killed_list else ""
-            self.send_telegram(
-                f"💀 <b>Lab: {new_kills} Experiment(s) Killed</b>\n"
-                f"Running: {running} | Pending: {pending} | Total killed: {killed}\n"
-                + (f"\n{kill_lines}" if kill_lines else "")
-            )
-
-        promoted = by_status.get("PROMOTED", 0)
-        key_promoted = f"lab_promoted:{topic}"
-        prev_promoted = self.state.get(key_promoted, 0)
-
-        if promoted > prev_promoted:
-            new_promo = promoted - prev_promoted
-            promo_list = [e for e in active if e.get("status") == "PROMOTED"][-new_promo:]
-            promo_lines = "\n".join(
-                f"  🏆 {e.get('pair','?')} T{e.get('tier','?')}: <b>{fmt_usd(e.get('pnl',0))}</b> | Sharpe {e.get('sharpe',0):.2f}"
-                for e in promo_list
-            ) if promo_list else ""
-            tier_summary = " | ".join(
-                f"T{t}: {td.get('count',0)} runs, {fmt_usd(td.get('total_pnl',0))} PnL"
-                for t, td in sorted(by_tier.items())
-            ) if by_tier else ""
-            self.send_telegram(
-                f"🏆 <b>Lab: {new_promo} Experiment(s) Promoted</b>\n"
-                f"Running: {running} | Promoted: {promoted}\n"
-                + (f"\n{promo_lines}" if promo_lines else "")
-                + (f"\n<i>{tier_summary}</i>" if tier_summary else "")
-            )
-
-        self.state[key_killed] = killed
-        self.state[key_promoted] = promoted
 
     def _handle_alpha(self, data, topic):
         is_listing = "/new_listing/" in topic
@@ -478,41 +283,6 @@ class AlertService(BaseService):
             )
         self.cache.add(key)
 
-    def _handle_unlock(self, data, topic):
-        token = data.get("token", "?")
-        pair = data.get("pair", "")
-        status = data.get("status", "")
-        ok, prev = self._should_alert(f"unlock:{pair}:{status}", status, "alert_on_unlock")
-        if not ok:
-            return
-
-        unlock_pct = float(data.get("unlock_pct", 0))
-        unlock_amt = data.get("unlock_amount", "?")
-        source = data.get("source", "")
-        buy_mult, sell_mult = float(data.get("buy_spread_mult", 1)), float(data.get("sell_spread_mult", 1))
-        buy_adj, sell_adj = (buy_mult - 1) * 100, (sell_mult - 1) * 100
-
-        if status == "PRE_UNLOCK":
-            hours = float(data.get("hours_until_unlock", 0))
-            est_spread_profit = abs(buy_adj) * 0.01 * 100
-            self.send_telegram(
-                f"🔓 <b>Unlock Approaching — {token}</b>\n"
-                f"Pair: {pair} | Unlock in <b>{fmt_hours(hours)}</b>\n"
-                f"Size: {unlock_pct}% ({unlock_amt})\n"
-                f"Spread adjustment: Buy: x{buy_mult:.2f} ({buy_adj:+.0f}%) | Sell: x{sell_mult:.2f} ({sell_adj:+.0f}%)\n"
-                f"<i>Expect sell pressure — widening spreads</i>\n💰 Wider spreads est. +{est_spread_profit:.1f}% extra per fill"
-                + (f"\nSource: {source}" if source else "")
-            )
-        elif status == "POST_UNLOCK":
-            hours = float(data.get("hours_since_unlock", 0))
-            self.send_telegram(
-                f"🔓 <b>Post-Unlock — {token}</b>\n"
-                f"Pair: {pair} | Unlocked <b>{fmt_hours(hours)} ago</b>\n"
-                f"Size: {unlock_pct}% ({unlock_amt})\n"
-                f"Spread adjustment: Buy: x{buy_mult:.2f} ({buy_adj:+.0f}%) | Sell: x{sell_mult:.2f} ({sell_adj:+.0f}%)\n"
-                f"<i>Mean reversion window — watching for bounce</i>\n💰 Bounce: est. {unlock_pct * 0.3:.1f}% reversion"
-            )
-
     def _handle_arb(self, data, topic):
         token = data.get("token", "?")
         buy_dex, sell_dex = data.get("buy_dex", ""), data.get("sell_dex", "")
@@ -537,39 +307,6 @@ class AlertService(BaseService):
         )
         self.cache.add(key)
 
-    def _handle_funding_scan(self, data, topic):
-        if not self.config.alert_on_funding_scan:
-            return
-        if "/summary" in topic:
-            return
-        symbol = data.get("symbol", "?")
-        key = f"fscan:{symbol}:{data.get('signal', '')}"
-        if self.state.get(key):
-            return
-        rate = float(data.get("funding_rate", 0))
-        apr = float(data.get("annualized_apr", 0))
-        signal = data.get("signal", "?")
-        direction = data.get("direction", "?")
-        next_ts = data.get("next_funding_time", 0)
-        bps = rate * 10000
-        daily_rate = rate * 3 * 100
-        emoji = "🔥" if signal == "EXTREME" else "📈"
-        dir_hint = "Shorts pay → long bias" if direction == "SHORT_PAYS" else "Longs pay → short bias"
-        earn_100_8h = abs(rate) * 100
-        earn_100_day = earn_100_8h * 3
-        earn_100_month = earn_100_day * 30
-        if earn_100_month < MIN_PROFIT_100:
-            self.state[key] = True
-            return
-        self.send_telegram(
-            f"{emoji} <b>Funding Spike — {symbol}</b> [{signal}]{binance_link(symbol)}\n"
-            f"Rate: {rate:.6f} ({bps:+.1f} bps) | APR: <b>{fmt_pct(apr, 1)}</b>\n"
-            f"Direction: {direction} ({dir_hint})\n"
-            f"Income ($100): {fmt_usd(earn_100_8h)}/8h | {fmt_usd(earn_100_day)}/day\n"
-            f"Next funding: {fmt_ts(next_ts)}"
-        )
-        self.state[key] = True
-
     def _handle_narrative(self, data, topic):
         token, category = data.get("token", "?"), data.get("category", "?")
         key = f"narr:{category}:{token}"
@@ -588,65 +325,6 @@ class AlertService(BaseService):
             f"💰 <b>$100 → {fmt_usd(max(p1h * 0.5, 0))}</b> (extrapolated trend)"
         )
         self.cache.add(key)
-
-    def _handle_swarm(self, data, topic):
-        if not self.config.alert_on_swarm:
-            return
-        if "/deploy/" in topic:
-            token = data.get("token", "?")
-            status = data.get("status", "?")
-            pair = data.get("pair", "")
-            dex = data.get("dex", "?")
-            capital = float(data.get("capital", 0))
-            entry = float(data.get("entry_price", 0))
-            score = data.get("score", 0)
-            is_live = status == "ACTIVE"
-            tokens_bought = (capital / entry) if entry > 0 else 0
-            win_prob = min(90, max(30, score * 8))
-            est_gain = capital * 0.15
-            est_loss = capital * 0.20
-            ev = (win_prob / 100 * est_gain) - ((100 - win_prob) / 100 * est_loss)
-            self.send_telegram(
-                f"{'🤖' if is_live else '📋'} <b>Swarm {'Deploy' if is_live else 'Recommendation'} — {token}</b>\n"
-                f"Pair: {pair} on {dex}\n"
-                f"Score: <b>{score}/10</b> {bar(score)}\n"
-                f"Capital: {fmt_usd(capital)} @ ${entry:.6f} ({tokens_bought:.2f} tokens)\n"
-                f"Win prob: {win_prob}% | EV per trade: <b>{fmt_usd(ev)}</b>\n"
-                f"💰 Target +15% ({fmt_usd(est_gain)}) | Stop -20% ({fmt_usd(est_loss)})\n"
-                f"Status: <b>{status}</b>"
-            )
-        elif "/status" in topic:
-            active = int(data.get("active_bots", 0))
-            total = int(data.get("total_bots", 0))
-            total_pnl = float(data.get("total_pnl", 0))
-            deployed = float(data.get("total_capital_deployed", 0))
-            available = float(data.get("available_capital", 0))
-            by_status = data.get("by_status", {})
-            killed = by_status.get("KILLED", 0)
-            active_list = data.get("active", [])
-
-            key_killed = "swarm_killed"
-            prev_killed = self.state.get(key_killed, 0)
-            new_kills = killed - prev_killed
-
-            if new_kills > 0 or (active > 0 and total_pnl != self.state.get("swarm_prev_pnl", total_pnl)):
-                roi = (total_pnl / deployed * 100) if deployed > 0 else 0
-                pnl_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
-                top_bots = sorted(active_list, key=lambda b: b.get("pnl", 0), reverse=True)[:3]
-                bot_lines = "\n".join(
-                    f"  {sign(b.get('pnl', 0))} {b.get('token', '?')} ({b.get('age_hours', 0):.0f}h)"
-                    for b in top_bots
-                ) if top_bots else ""
-                self.send_telegram(
-                    f"{pnl_emoji} <b>Swarm Fleet Status</b>\n"
-                    f"Active: {active}/{total} bots | Total ROI: <b>{roi:+.2f}%</b>\n"
-                    f"PnL: <b>{fmt_usd(total_pnl)}</b> | Capital: {fmt_usd(deployed)}\n"
-                    + (f"New Kills: {new_kills}\n" if new_kills > 0 else "")
-                    + (f"<b>Top Performers:</b>\n{bot_lines}" if bot_lines else "")
-                )
-
-            self.state[key_killed] = killed
-            self.state["swarm_prev_pnl"] = total_pnl
 
     def _handle_clmm(self, data, topic):
         if not self.config.alert_on_clmm or not data.get("should_rebalance"): return
@@ -670,35 +348,6 @@ class AlertService(BaseService):
             f"Util: {fmt_pct(util)} | NATR: {fmt_pct(natr*100)} | {regime}/{session}\n"
             f"Est. fees: <b>{fmt_usd(est_daily_fees * 100)}/day</b> per $100 LP"
         )
-
-    def _handle_migration(self, data, topic):
-        if not self.config.alert_on_migration: return
-        token = data.get("token", "?")
-        if "/new_pool/" in topic:
-            pair_addr = data.get("pair_address") or data.get("address", "")
-            key = f"new_pool:{pair_addr}"
-            if key in self.cache: return
-            
-            liq, vol = float(data.get("liquidity", 0)), float(data.get("volume_24h", 0))
-            vol_liq = (vol / liq) if liq > 0 else 0
-            heat = "🟢 HOT" if vol_liq > 3 else "� WARM" if vol_liq > 1 else "⚪ early"
-            self.send_telegram(
-                f"🏊 <b>New Pool — {token}</b> [{heat}]{dex_link(pair_addr)}\n"
-                f"Pool: {data.get('pair','?')} on <b>{data.get('dex','?')}</b>\n"
-                f"{self._fmt_meta(data)} ({vol_liq:.1f}x)\n"
-                f"Price: {fmt_price(data.get('price', 0))} | 💰 Est. high volatility window"
-            )
-            self.cache.add(key)
-        elif "/event/" in topic:
-            status = data.get("status", "")
-            if self.state.get(f"ev:{token}:{status}") == status: return
-            timing = f"⏳ In {fmt_hours(data.get('hours', 0))}" if status == "ACTIVE" else f"✅ {fmt_hours(data.get('hours', 0))} ago"
-            self.send_telegram(
-                f"📅 <b>{data.get('event_type','?')} — {token}</b>\n"
-                f"Status: {status} | {timing}\n"
-                f"<i>{data.get('description', '')}</i>"
-            )
-            self.state[f"ev:{token}:{status}"] = status
 
     def _handle_watchlist(self, data, topic):
         if not self.config.alert_on_watchlist: return
@@ -772,10 +421,10 @@ class AlertService(BaseService):
         self.send_telegram(
             "🤖 <b>Edge Services Online</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
-            "📡 Monitoring: Regime | Session | Funding\n"
-            "⚡ Scanning:   Arb | Alpha | Narrative | Swarm\n"
+            "📡 Monitoring: Session\n"
+            "⚡ Scanning:   Arb | Alpha | Narrative\n"
             "🛡️ Managing:   Hedge | Inventory | PnL\n"
-            "🎯 Optimizing: CLMM | Rewards | Lab | Migration\n"
+            "🎯 Optimizing: CLMM | Rewards | Watchlist\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
             f"All signals routing to Telegram. Min arb: {fmt_usd(MIN_ARB_NET_PROFIT)} 💰"
         )

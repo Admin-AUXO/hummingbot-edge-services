@@ -11,6 +11,7 @@ class ClmmConfig(BaseServiceConfig):
     eval_interval_seconds: int = 120
 
     target_pair: str = "sol_usdc"
+    price_symbol: str = "SOLUSDT"
     base_range_pct: float = 2.0
 
     regime_multipliers: dict = {

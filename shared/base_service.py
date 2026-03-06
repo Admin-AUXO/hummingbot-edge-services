@@ -5,6 +5,8 @@ import time
 
 import paho.mqtt.client as mqtt
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -19,6 +21,17 @@ class BaseService:
         self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
         self.logger = logging.getLogger(self.name)
         self.session = requests.Session()
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            backoff_factor=0.3,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset(["GET", "POST"]),
+        )
+        adapter = HTTPAdapter(pool_connections=20, pool_maxsize=40, max_retries=retry)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
         self.session.auth = (self.config.api_username, self.config.api_password)
         signal.signal(signal.SIGINT, self._shutdown)
         signal.signal(signal.SIGTERM, self._shutdown)
@@ -74,18 +87,35 @@ class BaseService:
     def on_tick(self):
         pass
 
+    def _build_dex_tokens_url(self, token_addresses):
+        base_url = getattr(
+            self.config,
+            "dex_token_url",
+            "https://api.dexscreener.com/tokens/v1/solana",
+        )
+        addresses = ",".join(token_addresses)
+        if "/tokens/v1/" in base_url:
+            return f"{base_url.rstrip('/')}/{addresses}"
+        if base_url.endswith("/"):
+            return f"{base_url}{addresses}"
+        return f"{base_url}/{addresses}"
+
     def fetch_market_data(self, addresses):
-        if not addresses: return {}
+        if not addresses:
+            return {}
+        addresses = list(dict.fromkeys(addresses))
         results = {}
-        for i in range(0, len(addresses), 30):
-            chunk = addresses[i : i + 30]
+        batch_size = max(1, min(30, int(getattr(self.config, "dex_batch_size", 30))))
+        for i in range(0, len(addresses), batch_size):
+            chunk = addresses[i : i + batch_size]
             try:
-                base_url = getattr(self.config, "dex_token_url", "https://api.dexscreener.com/latest/dex/tokens/")
-                resp = self.session.get(f"{base_url}{','.join(chunk)}", timeout=15)
+                url = self._build_dex_tokens_url(chunk)
+                resp = self.session.get(url, timeout=15)
                 resp.raise_for_status()
                 data = resp.json()
                 pairs = data.get("pairs") if isinstance(data, dict) else data
-                if not pairs: continue
+                if not pairs:
+                    continue
                 for p in pairs:
                     if p.get("chainId") == "solana":
                         addr = p.get("baseToken", {}).get("address", "")

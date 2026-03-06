@@ -3,7 +3,6 @@ import os
 import sys
 import time
 
-import requests
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -24,7 +23,21 @@ class NarrativeService(BaseService):
     def load_narratives(self):
         try:
             with open(self.config.narratives_file, "r") as f:
-                return json.load(f)
+                raw = json.load(f)
+            if not isinstance(raw, list):
+                self.logger.error(f"Invalid narratives format in {self.config.narratives_file}: expected list")
+                return []
+            seen = set()
+            deduped = []
+            for item in raw:
+                keyword = item.get("keyword")
+                category = item.get("category")
+                key = (keyword, category)
+                if not keyword or not category or key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(item)
+            return deduped
         except Exception as e:
             self.logger.error(f"Failed to load narratives: {e}")
             return []
@@ -71,9 +84,13 @@ class NarrativeService(BaseService):
 
     def on_tick(self):
         narratives = self.load_narratives()
+        if not narratives:
+            self.logger.info("Scanned 0 narratives, 0 signals")
+            return
         all_spiking = []
 
-        with ThreadPoolExecutor(max_workers=5) as ex:
+        workers = max(1, min(self.config.max_workers, len(narratives)))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = [ex.submit(self.scan_narrative, n) for n in narratives]
             for f in futures:
                 all_spiking.extend(filter_spiking_tokens(f.result(), self.config))
@@ -85,8 +102,10 @@ class NarrativeService(BaseService):
                 self.alerted_tokens.add(key)
                 self.logger.info(f"NARRATIVE: [{t['category']}] {t['token']} {t['volume_spike']}x vol=${t['volume_24h']:,.0f}")
 
-        if len(self.alerted_tokens) > 5000: self.alerted_tokens.clear()
-        if len(self.prev_volumes) > 10000: self.prev_volumes.clear()
+        if len(self.alerted_tokens) > self.config.alerted_tokens_limit:
+            self.alerted_tokens.clear()
+        if len(self.prev_volumes) > self.config.prev_volumes_limit:
+            self.prev_volumes.clear()
         self.logger.info(f"Scanned {len(narratives)} narratives, {len(all_spiking)} signals")
 
 

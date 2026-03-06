@@ -10,24 +10,29 @@ class ArbConfig(BaseServiceConfig):
     mqtt_topic_prefix: str = "hbot/arb"
     poll_interval_seconds: int = 30
 
-    dex_token_url: str = "https://api.dexscreener.com/latest/dex/tokens/"
+    dex_token_url: str = "https://api.dexscreener.com/tokens/v1/solana"
+    dex_search_url: str = "https://api.dexscreener.com/latest/dex/search"
+    dex_search_query: str = "SOL"
+    dex_batch_size: int = 30
     tokens_file: str = "./tokens.json"
 
-    # --- Filters (higher = fewer but better opportunities) ---
-    min_arb_pct: float = 10.31         # $10 net on $100 after 0.3% slippage + gas
-    min_net_profit_100: float = 10.0   # $10 min net profit per $100
-    min_liquidity: float = 10000.0     # Min liquidity per side (was 5000)
-    min_dex_count: int = 2             # Min DEXs with liquidity
-    min_volume_24h: float = 5000.0     # Min 24h volume per pool
-    max_pool_age_hours: float = 0      # 0 = no filter; filter very new pools
+    max_workers: int = 10
+    discovery_interval_seconds: int = 1800
+    seen_arb_ttl_seconds: int = 600
+    cache_max_size: int = 30000
 
-    # --- Sanity checks (reject bad data / scam pools) ---
-    max_price_ratio: float = 5.0       # Max price ratio between DEXes (5x = 400% spread)
-    max_spread_pct: float = 100.0      # Max realistic spread % (anything above is bad data)
+    min_arb_pct: float = 10.31
+    min_net_profit_100: float = 10.0
+    min_liquidity: float = 10000.0
+    min_dex_count: int = 2
+    min_volume_24h: float = 5000.0
+    max_pool_age_hours: float = 0
 
-    # --- Sizing ---
-    max_trade_pct_of_liq: float = 0.02  # Max 2% of pool liquidity per trade
-    est_slippage_pct: float = 0.3       # Estimated slippage
-    gas_cost_usd: float = 0.01          # Solana gas per swap
+    max_price_ratio: float = 5.0
+    max_spread_pct: float = 100.0
+
+    max_trade_pct_of_liq: float = 0.02
+    est_slippage_pct: float = 0.3
+    gas_cost_usd: float = 0.01
 
     model_config = {"env_prefix": "ARB_"}

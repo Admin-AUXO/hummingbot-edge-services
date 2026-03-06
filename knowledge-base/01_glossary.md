@@ -93,10 +93,8 @@
 | **regime-service** | Classifies market as BULL/BEAR/SIDEWAYS/SPIKE using NATR + BB Width, publishes to MQTT | [15_edge_systems](15_edge_systems.md#system-1-automated-regime-switching) |
 | **inventory-service** | Monitors spot portfolio skew and kill-switch drawdown, publishes to MQTT | [06_risk](06_risk_management.md#inventory-management) |
 | **hedge-service** | Delta-neutral coordinator — hedges Raydium spot with Hyperliquid short via API | [15_edge_systems](15_edge_systems.md#system-2-delta-neutral-market-making--implemented) |
-| **lab-service** | Experiment framework with PRODUCTION/TESTING/EXPLORATION tiers, auto-kill criteria | [15_edge_systems](15_edge_systems.md#system-3-the-lab-framework--implemented) |
 | **pnl-service** | Aggregates executor PnL analytics per trading pair, publishes to MQTT | |
 | **funding-service** | Monitors Binance perp funding rates, calculates spread bias | |
 | **correlation-service** | Tracks SOL correlation vs ETH/BTC using z-scores for mean-reversion signals | |
 | **session-service** | Time-zone config switching (Asia/EU/US sessions) | [15_edge_systems](15_edge_systems.md#time-zone-config-switching) |
-| **backtest-service** | Parameter sweep automation, publishes top configs to MQTT | [15_edge_systems](15_edge_systems.md#system-4-backtesting-pipeline) |
 | **alert-service** | Routes all MQTT signals to Telegram alerts with state-change detection | |

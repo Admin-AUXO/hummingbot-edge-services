@@ -2,7 +2,4 @@ paho-mqtt
 requests
 pydantic
 pydantic-settings
-numpy
-pandas
-pandas-ta
 pyyaml

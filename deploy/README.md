@@ -1,6 +1,6 @@
 # Hummingbot Edge Services — VPS Deployment Guide
 
-Deploy the entire trading stack to a Hostinger KVM 2 VPS using Docker.
+Deploy the DEX-lean trading stack to a Hostinger KVM 2 VPS using Docker.
 
 ---
 
@@ -9,13 +9,13 @@ Deploy the entire trading stack to a Hostinger KVM 2 VPS using Docker.
 | Container           | Image                 | RAM Limit   | Purpose                    |
 | ------------------- | --------------------- | ----------- | -------------------------- |
 | `hbot-broker`       | emqx:5                | 512 MB      | MQTT message broker        |
-| `hbot-postgres`     | postgres:16-alpine    | 256 MB      | Bot history database       |
-| `hbot-api`          | hummingbot-api:latest | 256 MB      | REST API orchestration     |
 | `hbot-client`       | hummingbot:latest     | 512 MB      | Trading bot CLI            |
 | `hbot-gateway`      | gateway:latest        | 256 MB      | DEX on-chain routing       |
-| 17× `edge-*`        | Built from repo       | 128 MB each | Python edge services       |
-| 3× `edge-*` (tier4) | Built from repo       | 128 MB each | On-demand services         |
-| **Total**           |                       | **~4.4 GB** | Fits in 8 GB with headroom |
+| 8× `edge-*`         | Built from repo       | 128 MB each | DEX-focused edge services  |
+| `hbot-postgres`     | postgres:16-alpine    | 256 MB      | API profile only           |
+| `hbot-api`          | hummingbot-api:latest | 256 MB      | API profile only           |
+| 3× `edge-*`         | Built from repo       | 128 MB each | API profile only           |
+| **Total (default)** |                       | **~3.3 GB** | Fits in 8 GB with headroom |
 
 ---
 
@@ -56,7 +56,7 @@ Hostinger will:
 - Clone the repo
 - Build the edge service image from `deploy/Dockerfile`
 - Pull all pre-built images (EMQX, PostgreSQL, Hummingbot, etc.)
-- Start all 26 containers
+- Start the DEX-lean stack by default
 
 ### Step 4: Verify
 
@@ -88,8 +88,11 @@ cd ~/Trading/deploy
 cp .env.example .env
 nano .env    # Edit credentials and Telegram config
 
-# Deploy everything
+# Deploy DEX-lean default
 docker compose up -d
+
+# Optional: include API-integrated profile (inventory/hedge/pnl + hbot-api/postgres)
+docker compose --profile api-extended up -d
 
 # Check status
 docker compose ps
@@ -132,22 +135,14 @@ docker compose logs hbot-api --tail 20
 docker compose restart
 
 # Restart one service
-docker compose restart edge-regime
+docker compose restart edge-alpha
 
-# Restart all edge services only
-docker compose restart edge-session edge-regime edge-funding edge-correlation \
-  edge-alpha edge-arb edge-funding-scanner edge-narrative edge-rewards \
-  edge-inventory edge-hedge edge-pnl \
-  edge-lab edge-alert edge-swarm edge-clmm edge-watchlist
-```
+# Restart all DEX-lean edge services
+docker compose restart edge-session edge-alpha edge-arb edge-narrative \
+  edge-rewards edge-alert edge-clmm edge-watchlist
 
-### Start Tier 4 Services (On-Demand)
-
-Tier 4 services (unlock, backtest, migration) are NOT started by default. To start them:
-
-```bash
-cd ~/Trading/deploy
-COMPOSE_PROFILES=tier4 docker compose up -d edge-unlock edge-backtest edge-migration
+# Restart optional API-integrated services
+docker compose --profile api-extended restart edge-inventory edge-hedge edge-pnl hbot-api postgres
 ```
 
 ### Stop Everything
@@ -191,8 +186,8 @@ Inside the CLI:
 
 ```
 deploy/
-├── docker-compose.yml    ← The unified compose file (26 containers)
-├── Dockerfile            ← Shared image for all 20 edge services
+├── docker-compose.yml    ← The unified compose file (20 containers)
+├── Dockerfile            ← Shared image for active edge services
 ├── entrypoint.sh         ← Dispatches to correct service by SERVICE_NAME
 ├── .env.example          ← Template — copy to .env and edit
 ├── .env                  ← Your actual secrets (gitignored)
@@ -205,7 +200,7 @@ deploy/
 
 | Resource      | Available   | Used (est.)       | Headroom |
 | ------------- | ----------- | ----------------- | -------- |
-| **RAM**       | 8 GB        | ~4.4 GB           | ~3.6 GB  |
+| **RAM**       | 8 GB        | ~3.3 GB           | ~4.7 GB  |
 | **CPU**       | 2 vCPU      | Light (I/O-bound) | Plenty   |
 | **Disk**      | 100 GB NVMe | ~15-20 GB         | ~80 GB   |
 | **Bandwidth** | 8 TB/month  | ~5-10 GB/day      | Plenty   |

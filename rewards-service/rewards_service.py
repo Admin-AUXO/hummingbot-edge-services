@@ -3,8 +3,6 @@ import os
 import sys
 import time
 
-import requests
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config import RewardsConfig
@@ -28,7 +26,19 @@ class RewardsService(BaseService):
     def load_pools(self):
         try:
             with open(self.config.pools_file, "r") as f:
-                return json.load(f)
+                raw_pools = json.load(f)
+            if not isinstance(raw_pools, list):
+                self.logger.error(f"Invalid pools format in {self.config.pools_file}: expected list")
+                return []
+            seen_addresses = set()
+            deduped = []
+            for pool in raw_pools:
+                address = pool.get("address")
+                if not address or address in seen_addresses:
+                    continue
+                seen_addresses.add(address)
+                deduped.append(pool)
+            return deduped
         except Exception as e:
             self.logger.error(f"Failed to load pools: {e}")
             return []

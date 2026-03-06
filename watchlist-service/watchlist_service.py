@@ -3,8 +3,6 @@ import os
 import sys
 import time
 
-import requests
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config import WatchlistConfig
@@ -12,7 +10,6 @@ from shared.base_service import BaseService
 from watchlist_manager import (
     build_arb_entry,
     build_funding_entry,
-    build_rewards_entry,
     check_staleness,
     load_state,
     parse_boost_signals,
@@ -22,7 +19,6 @@ from watchlist_manager import (
     seed_state,
     should_add_arb,
     should_add_funding,
-    should_add_rewards,
     to_arb_json,
     to_funding_json,
     to_rewards_json,
@@ -68,22 +64,25 @@ class WatchlistService(BaseService):
             self.logger.error(f"Message handler error: {e}")
 
     def process_signals(self):
-        if not self.pending_signals: return {}
-        
+        if not self.pending_signals:
+            return {}
+
+        signals = self.pending_signals
+        self.pending_signals = []
+
         added = {"arb": [], "rewards": [], "funding": []}
         ex_arb = {e["address"] for e in self.state["arb_tokens"] if "address" in e}
         ex_rewards = {e["address"] for e in self.state["rewards_pools"] if "address" in e}
         ex_funding = {e["symbol"] for e in self.state["funding_symbols"] if "symbol" in e}
 
-        for signal in self.pending_signals:
+        for signal in signals:
             topic = signal.pop("_topic", "")
             is_alpha = "/alpha/" in topic or signal.get("source") in ("dex_boost", "dex_profile")
             is_narr = "/narrative/" in topic
             
             if is_alpha or is_narr:
                 source = signal.get("source", "alpha") if is_alpha else "narrative"
-                
-                # Check Arb
+
                 ok, _ = should_add_arb(signal, ex_arb, self.state, self.config)
                 if ok:
                     entry = build_arb_entry(signal, source)
@@ -91,7 +90,6 @@ class WatchlistService(BaseService):
                     ex_arb.add(entry["address"])
                     added["arb"].append(entry)
 
-                # Check Funding
                 ok, _ = should_add_funding(signal, ex_funding, self.state, self.config)
                 if ok:
                     sym = f"{signal.get('token', '')}USDT"
@@ -100,8 +98,6 @@ class WatchlistService(BaseService):
                     ex_funding.add(sym)
                     added["funding"].append(entry)
 
-        self.pending_signals.clear()
-        
         for etype, entries in added.items():
             for entry in entries:
                 sym = entry.get("symbol") or entry.get("token", "?")
@@ -179,20 +175,28 @@ class WatchlistService(BaseService):
         )
 
     def poll_trending(self):
-        for url, parser in [
-            (self.config.dex_boosts_url, parse_boost_signals),
-            (self.config.dex_profiles_url, parse_profile_signals),
-        ]:
-            try:
-                resp = self.session.get(url, timeout=15)
-                resp.raise_for_status()
-                signals = parser(resp.json())
-                for s in signals:
-                    s["_topic"] = "trending/dex"
-                self.pending_signals.extend(signals)
-                self.logger.info(f"Trending poll: {len(signals)} Solana tokens from {url.split('/')[-2]}")
-            except Exception as e:
-                self.logger.error(f"Trending poll failed ({url}): {e}")
+        try:
+            resp = self.session.get(self.config.dex_boosts_url, timeout=15)
+            resp.raise_for_status()
+            signals = parse_boost_signals(resp.json())
+            for signal in signals:
+                signal["_topic"] = "trending/dex"
+            self.pending_signals.extend(signals)
+            self.logger.info(f"Boost poll: {len(signals)} Solana tokens")
+        except Exception as e:
+            self.logger.error(f"Boost poll failed ({self.config.dex_boosts_url}): {e}")
+
+    def poll_profiles(self):
+        try:
+            resp = self.session.get(self.config.dex_profiles_url, timeout=15)
+            resp.raise_for_status()
+            signals = parse_profile_signals(resp.json())
+            for signal in signals:
+                signal["_topic"] = "trending/dex"
+            self.pending_signals.extend(signals)
+            self.logger.info(f"Profile poll: {len(signals)} Solana tokens")
+        except Exception as e:
+            self.logger.error(f"Profile poll failed ({self.config.dex_profiles_url}): {e}")
 
     def run(self):
         self.connect_mqtt(
@@ -207,7 +211,8 @@ class WatchlistService(BaseService):
         )
 
         last_eval = 0.0
-        last_trending = 0.0
+        last_boost_poll = 0.0
+        last_profile_poll = 0.0
 
         while self.running:
             now = time.time()
@@ -216,9 +221,13 @@ class WatchlistService(BaseService):
                 self.eval_cycle()
                 last_eval = now
 
-            if (now - last_trending) >= self.config.boost_poll_seconds:
+            if (now - last_boost_poll) >= self.config.boost_poll_seconds:
                 self.poll_trending()
-                last_trending = now
+                last_boost_poll = now
+
+            if (now - last_profile_poll) >= self.config.profile_poll_seconds:
+                self.poll_profiles()
+                last_profile_poll = now
 
             self.sleep_loop(min(10, self.config.eval_interval_seconds))
 

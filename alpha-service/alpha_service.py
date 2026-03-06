@@ -3,8 +3,6 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-import requests
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config import AlphaConfig
@@ -18,14 +16,18 @@ class AlphaService(BaseService):
 
     def __init__(self):
         super().__init__(AlphaConfig())
-        self.seen_signals = TTLCache(7200)
-        self.seen_listings = TTLCache(14400)
+        self.seen_signals = TTLCache(self.config.signal_ttl_seconds, max_size=self.config.cache_max_size)
+        self.seen_listings = TTLCache(self.config.listing_ttl_seconds, max_size=self.config.cache_max_size)
         self._strict_list = set()
         self._last_strict_fetch = 0
 
     def fetch_solana_pairs(self):
         try:
-            resp = self.session.get(self.config.dex_search_url, timeout=15)
+            resp = self.session.get(
+                self.config.dex_search_url,
+                params={"q": self.config.dex_search_query},
+                timeout=15,
+            )
             resp.raise_for_status()
             data = resp.json()
             pairs = data.get("pairs", [])
@@ -36,7 +38,7 @@ class AlphaService(BaseService):
 
     def fetch_strict_list(self):
         now = time.time()
-        if now - self._last_strict_fetch < 3600 and self._strict_list:
+        if now - self._last_strict_fetch < self.config.strict_list_ttl_seconds and self._strict_list:
             return self._strict_list
 
         urls = [
@@ -49,8 +51,7 @@ class AlphaService(BaseService):
                 resp = self.session.get(url, timeout=15)
                 resp.raise_for_status()
                 data = resp.json()
-                
-                # Jupiter tokens API returns a list of objects
+
                 addrs = set()
                 for item in data:
                     if isinstance(item, dict):
@@ -74,6 +75,9 @@ class AlphaService(BaseService):
     def on_tick(self):
         self._cap_seen()
         pairs = self.fetch_solana_pairs()
+        if not pairs:
+            self.logger.info("Fetched 0 Solana pairs")
+            return
         strict_list = self.fetch_strict_list()
         self.logger.info(f"Fetched {len(pairs)} Solana pairs, {len(strict_list)} strict tokens")
 
@@ -102,8 +106,9 @@ class AlphaService(BaseService):
                 self.seen_listings.add(addr)
                 self.logger.info(f"NEW LISTING: {sym} age={p['age_hours']}h liq=${p['liquidity']:,.0f}")
 
-        with ThreadPoolExecutor(max_workers=5) as ex:
-            ex.map(process_pair, pairs)
+        workers = max(1, min(self.config.max_workers, len(pairs)))
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(process_pair, pairs))
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ class WatchlistConfig(BaseServiceConfig):
 
     arb_tokens_file: str = "../arb-service/tokens.json"
     rewards_pools_file: str = "../rewards-service/pools.json"
-    funding_symbols_file: str = "../funding-scanner-service/symbols.json"
+    funding_symbols_file: str = "./funding_symbols.json"
     state_file: str = "./watchlist_state.json"
 
     dex_boosts_url: str = "https://api.dexscreener.com/token-boosts/latest/v1"

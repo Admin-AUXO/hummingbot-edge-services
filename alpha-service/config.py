@@ -18,6 +18,13 @@ class AlphaConfig(BaseServiceConfig):
     h1_vol_ratio_threshold: float = 0.20
     buy_sell_ratio_threshold: float = 1.5
 
-    dex_search_url: str = "https://api.dexscreener.com/latest/dex/search?q=SOL"
+    dex_search_url: str = "https://api.dexscreener.com/latest/dex/search"
+    dex_search_query: str = "SOL"
+
+    max_workers: int = 6
+    strict_list_ttl_seconds: int = 3600
+    signal_ttl_seconds: int = 7200
+    listing_ttl_seconds: int = 14400
+    cache_max_size: int = 20000
 
     model_config = {"env_prefix": "ALPHA_"}

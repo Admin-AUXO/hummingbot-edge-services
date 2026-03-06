@@ -84,9 +84,9 @@ start --script v2_with_controllers.py --conf multi_strategy.yml
 
 - Multiple DEX wallets initialized (MetaMask + Phantom)
 - Core edge services running: regime-service, session-service, inventory-service, hedge-service, pnl-service, correlation-service, alert-service
-- Lab-service managing experiments across PRODUCTION/TESTING/EXPLORATION tiers
+- Manual experiment tracking across PRODUCTION/TESTING/EXPLORATION tiers
 - Scanners: alpha-service (token scoring), arb-service (cross-DEX spreads), funding-scanner-service (multi-pair funding rates), narrative-service (social momentum)
-- Orchestration: swarm-service (multi-bot fleet), clmm-service (range optimization)
+- Orchestration: clmm-service (range optimization) + operator-run multi-bot workflow
 - Target: 1-3% daily combined
 - Use [dynamic spread controllers](11_expert_tips.md#technique-1-volatility-adaptive-spreads) (pmm_dynamic, dman_v3) instead of fixed spreads
 - Implement [multi-timeframe regime filter](11_expert_tips.md#technique-3-multi-timeframe-regime-filter) before placing orders
