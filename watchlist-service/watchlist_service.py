@@ -6,6 +6,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config import WatchlistConfig
+from shared.utils import TTLCache, chain_address_key, normalize_chain_id, parse_csv_list
 from shared.base_service import BaseService
 from watchlist_manager import (
     build_arb_entry,
@@ -31,7 +32,27 @@ class WatchlistService(BaseService):
     def __init__(self):
         super().__init__(WatchlistConfig())
         self.pending_signals = []
+        self.signal_cache = TTLCache(self.config.signal_dedupe_ttl_seconds)
+        self.supported_chains = [normalize_chain_id(chain) for chain in parse_csv_list(self.config.supported_chains)] or ["solana"]
         self._init_state()
+
+    def _signal_dedupe_key(self, signal, topic):
+        chain_id = normalize_chain_id(signal.get("chainId"))
+        source = signal.get("source", "")
+        address = signal.get("address", "")
+        token = signal.get("token", "")
+        identity = address or token
+        return f"{topic}:{source}:{chain_id}:{identity}"
+
+    def _passes_signal_gate(self, signal, is_alpha, is_narr):
+        chain_id = normalize_chain_id(signal.get("chainId"))
+        if is_alpha:
+            score = signal.get("score")
+            if score is not None and float(score) < self.config.min_signal_alpha_score_for(chain_id):
+                return False
+        if is_narr and float(signal.get("volume_spike", 0)) < self.config.min_signal_narrative_spike_for(chain_id):
+            return False
+        return True
 
     def _init_state(self):
         self.state = load_state(self.config.state_file)
@@ -70,39 +91,79 @@ class WatchlistService(BaseService):
         signals = self.pending_signals
         self.pending_signals = []
 
+        chain_counts = {}
+        dropped_by_chain = {}
+        accepted = []
+        dropped_overflow = 0
+        for signal in signals:
+            chain = normalize_chain_id(signal.get("chainId"))
+            cap = max(0, int(self.config.max_signals_per_cycle_for(chain)))
+            if cap == 0:
+                dropped_overflow += 1
+                dropped_by_chain[chain] = dropped_by_chain.get(chain, 0) + 1
+                continue
+            current = chain_counts.get(chain, 0)
+            if current >= cap:
+                dropped_overflow += 1
+                dropped_by_chain[chain] = dropped_by_chain.get(chain, 0) + 1
+                continue
+            chain_counts[chain] = current + 1
+            accepted.append(signal)
+
+        signals = accepted
+        if dropped_overflow:
+            breakdown = ", ".join(f"{chain}={count}" for chain, count in sorted(dropped_by_chain.items()))
+            self.logger.info(f"Dropped {dropped_overflow} watchlist signals (per-chain cycle caps): {breakdown}")
+
         added = {"arb": [], "rewards": [], "funding": []}
-        ex_arb = {e["address"] for e in self.state["arb_tokens"] if "address" in e}
-        ex_rewards = {e["address"] for e in self.state["rewards_pools"] if "address" in e}
+        ex_arb = {chain_address_key(e.get("chainId"), e["address"]) for e in self.state["arb_tokens"] if "address" in e}
         ex_funding = {e["symbol"] for e in self.state["funding_symbols"] if "symbol" in e}
+        dropped_dedupe = 0
+        dropped_gate = 0
 
         for signal in signals:
             topic = signal.pop("_topic", "")
             is_alpha = "/alpha/" in topic or signal.get("source") in ("dex_boost", "dex_profile")
             is_narr = "/narrative/" in topic
-            
-            if is_alpha or is_narr:
-                source = signal.get("source", "alpha") if is_alpha else "narrative"
+            if not (is_alpha or is_narr):
+                continue
 
-                ok, _ = should_add_arb(signal, ex_arb, self.state, self.config)
-                if ok:
-                    entry = build_arb_entry(signal, source)
-                    self.state["arb_tokens"].append(entry)
-                    ex_arb.add(entry["address"])
-                    added["arb"].append(entry)
+            dedupe_key = self._signal_dedupe_key(signal, topic)
+            if dedupe_key in self.signal_cache:
+                dropped_dedupe += 1
+                continue
+            self.signal_cache.add(dedupe_key)
 
-                ok, _ = should_add_funding(signal, ex_funding, self.state, self.config)
-                if ok:
-                    sym = f"{signal.get('token', '')}USDT"
-                    entry = build_funding_entry(sym, source)
-                    self.state["funding_symbols"].append(entry)
-                    ex_funding.add(sym)
-                    added["funding"].append(entry)
+            if not self._passes_signal_gate(signal, is_alpha, is_narr):
+                dropped_gate += 1
+                continue
+
+            source = signal.get("source", "alpha") if is_alpha else "narrative"
+
+            ok, _ = should_add_arb(signal, ex_arb, self.state, self.config)
+            if ok:
+                entry = build_arb_entry(signal, source)
+                self.state["arb_tokens"].append(entry)
+                ex_arb.add(chain_address_key(entry.get("chainId"), entry["address"]))
+                added["arb"].append(entry)
+
+            ok, _ = should_add_funding(signal, ex_funding, self.state, self.config)
+            if ok:
+                sym = f"{signal.get('token', '')}USDT"
+                entry = build_funding_entry(sym, source)
+                self.state["funding_symbols"].append(entry)
+                ex_funding.add(sym)
+                added["funding"].append(entry)
+
+        if dropped_dedupe or dropped_gate:
+            self.logger.info(f"Signal filter: dedupe={dropped_dedupe} threshold={dropped_gate}")
 
         for etype, entries in added.items():
             for entry in entries:
                 sym = entry.get("symbol") or entry.get("token", "?")
-                self.publish(f"{self.config.mqtt_topic_prefix}/added/{etype}/{sym}", entry)
-                self.logger.info(f"ADDED {etype}: {sym}")
+                chain = "global" if etype == "funding" else normalize_chain_id(entry.get("chainId"))
+                self.publish(f"{self.config.mqtt_topic_prefix}/{chain}/added/{etype}/{sym}", entry)
+                self.logger.info(f"ADDED {etype}: [{chain}] {sym}")
 
         return added
 
@@ -111,19 +172,24 @@ class WatchlistService(BaseService):
         non_static_arb = [e for e in self.state["arb_tokens"] if e.get("source") != "static"]
         non_static_rewards = [e for e in self.state["rewards_pools"] if e.get("source") != "static"]
 
-        addrs = [e["address"] for e in non_static_arb + non_static_rewards if e.get("address")]
-        md_batch = self.fetch_market_data(addrs)
+        market_items = [
+            {"address": e["address"], "chainId": e.get("chainId")}
+            for e in non_static_arb + non_static_rewards if e.get("address")
+        ]
+        md_batch = self.fetch_market_data(market_items)
 
         stale_arb = set()
         for entry in self.state["arb_tokens"]:
-            if check_staleness(entry, md_batch.get(entry.get("address", ""), {}), self.config):
+            md_key = chain_address_key(entry.get("chainId"), entry.get("address", ""))
+            if check_staleness(entry, md_batch.get(md_key, {}), self.config):
                 stale_arb.add(id(entry))
         if stale_arb:
             self.state["arb_tokens"], removed["arb"] = prune_stale(self.state["arb_tokens"], stale_arb)
 
         stale_rewards = set()
         for entry in self.state["rewards_pools"]:
-            if check_staleness(entry, md_batch.get(entry.get("address", ""), {}), self.config):
+            md_key = chain_address_key(entry.get("chainId"), entry.get("address", ""))
+            if check_staleness(entry, md_batch.get(md_key, {}), self.config):
                 stale_rewards.add(id(entry))
         if stale_rewards:
             self.state["rewards_pools"], removed["rewards"] = prune_stale(self.state["rewards_pools"], stale_rewards)
@@ -131,8 +197,9 @@ class WatchlistService(BaseService):
         for entry_type, entries in removed.items():
             for entry in entries:
                 sym = entry.get("symbol", entry.get("token", "?"))
-                self.publish(f"{self.config.mqtt_topic_prefix}/removed/{entry_type}/{sym}", entry)
-                self.logger.info(f"REMOVED {entry_type}: {sym} (stale)")
+                chain = normalize_chain_id(entry.get("chainId"))
+                self.publish(f"{self.config.mqtt_topic_prefix}/{chain}/removed/{entry_type}/{sym}", entry)
+                self.logger.info(f"REMOVED {entry_type}: [{chain}] {sym} (stale)")
 
         return removed
 
@@ -154,6 +221,7 @@ class WatchlistService(BaseService):
             "arb_tokens": len(self.state["arb_tokens"]),
             "rewards_pools": len(self.state["rewards_pools"]),
             "funding_symbols": len(self.state["funding_symbols"]),
+            "chains": self.supported_chains,
             "timestamp": time.time(),
         }
         self.publish(f"{self.config.mqtt_topic_prefix}/status", status)
@@ -178,11 +246,15 @@ class WatchlistService(BaseService):
         try:
             resp = self.session.get(self.config.dex_boosts_url, timeout=15)
             resp.raise_for_status()
-            signals = parse_boost_signals(resp.json())
+            signals = parse_boost_signals(resp.json(), supported_chains=self.supported_chains)
             for signal in signals:
                 signal["_topic"] = "trending/dex"
             self.pending_signals.extend(signals)
-            self.logger.info(f"Boost poll: {len(signals)} Solana tokens")
+            counts = {}
+            for signal in signals:
+                chain = normalize_chain_id(signal.get("chainId"))
+                counts[chain] = counts.get(chain, 0) + 1
+            self.logger.info(f"Boost poll: {len(signals)} tokens {counts}")
         except Exception as e:
             self.logger.error(f"Boost poll failed ({self.config.dex_boosts_url}): {e}")
 
@@ -190,11 +262,15 @@ class WatchlistService(BaseService):
         try:
             resp = self.session.get(self.config.dex_profiles_url, timeout=15)
             resp.raise_for_status()
-            signals = parse_profile_signals(resp.json())
+            signals = parse_profile_signals(resp.json(), supported_chains=self.supported_chains)
             for signal in signals:
                 signal["_topic"] = "trending/dex"
             self.pending_signals.extend(signals)
-            self.logger.info(f"Profile poll: {len(signals)} Solana tokens")
+            counts = {}
+            for signal in signals:
+                chain = normalize_chain_id(signal.get("chainId"))
+                counts[chain] = counts.get(chain, 0) + 1
+            self.logger.info(f"Profile poll: {len(signals)} tokens {counts}")
         except Exception as e:
             self.logger.error(f"Profile poll failed ({self.config.dex_profiles_url}): {e}")
 

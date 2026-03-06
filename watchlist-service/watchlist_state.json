@@ -3,6 +3,7 @@
     {
       "symbol": "SOL",
       "address": "So11111111111111111111111111111111111111112",
+      "chainId": "solana",
       "added_at": 1772487165.9690921,
       "source": "static",
       "last_active_at": 1772487165.9690933,
@@ -11,6 +12,7 @@
     {
       "symbol": "JUP",
       "address": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      "chainId": "solana",
       "added_at": 1772487165.9690974,
       "source": "static",
       "last_active_at": 1772487165.9690988,
@@ -19,6 +21,7 @@
     {
       "symbol": "JTO",
       "address": "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",
+      "chainId": "solana",
       "added_at": 1772487165.9691002,
       "source": "static",
       "last_active_at": 1772487165.9691007,
@@ -27,6 +30,7 @@
     {
       "symbol": "WIF",
       "address": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+      "chainId": "solana",
       "added_at": 1772487165.969102,
       "source": "static",
       "last_active_at": 1772487165.9691021,
@@ -35,6 +39,7 @@
     {
       "symbol": "PYTH",
       "address": "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3",
+      "chainId": "solana",
       "added_at": 1772487165.9691026,
       "source": "static",
       "last_active_at": 1772487165.969103,
@@ -47,6 +52,7 @@
       "pair": "SOL/USDC",
       "dex": "raydium",
       "address": "So11111111111111111111111111111111111111112",
+      "chainId": "solana",
       "reward_token": "RAY",
       "reward_apr": 15.0,
       "fee_tier": 0.25,
@@ -62,6 +68,7 @@
       "pair": "JUP/USDC",
       "dex": "meteora",
       "address": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      "chainId": "solana",
       "reward_token": "MET",
       "reward_apr": 25.0,
       "fee_tier": 0.3,

@@ -2,10 +2,8 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
 
 from concurrent.futures import ThreadPoolExecutor
-import requests
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -23,12 +21,6 @@ from shared.utils import (
     sign,
     token_link,
 )
-
-
-MIN_PROFIT_100 = 10
-MIN_ARB_NET_PROFIT = 10.0
-SOLANA_GAS = 0.01
-EST_SLIPPAGE_PCT = 0.3
 
 
 class AlertService(BaseService):
@@ -107,7 +99,6 @@ class AlertService(BaseService):
         base_val = float(data.get("base_value", 0))
         quote_val = float(data.get("quote_value", 0))
         skew = float(data.get("inventory_skew", 0))
-        bias = float(data.get("skew_bias", 0))
         target = data.get("target", topic.split("/")[-1])
         base_pct = (base_val / total_val * 100) if total_val > 0 else 0
         loss_usd = peak_val - total_val if peak_val > total_val else 0
@@ -187,7 +178,6 @@ class AlertService(BaseService):
         period = data.get("period_hours", 24)
         avg_pnl = float(data.get("avg_pnl", total_pnl / total if total > 0 else 0))
         by_regime = data.get("by_regime", {})
-        by_session = data.get("by_session", {})
 
         alerts = []
         if win_rate < self.config.min_win_rate_alert:
@@ -268,30 +258,38 @@ class AlertService(BaseService):
                 f"🆕 <b>New Listing — {token}</b> [{rating}]{dex_link(addr)}\n"
                 f"Dex: {data.get('dex', '?')} | Age: {fmt_hours(age)}\n"
                 f"{self._fmt_meta(data)} ({vol_liq:.1f}x ratio)\n"
-                f"Price: {fmt_price(price)} | 💰 Est. high-vol first-day moves"
+                f"Price: {fmt_price(price)}"
             )
         else:
             score = int(data.get("score", 0))
+            if score < self.config.min_alert_alpha_score:
+                return
             p5m, p1h = float(data.get("price_change_5m", 0)), float(data.get("price_change_1h", 0))
             momentum = "🔥 STRONG UP" if p5m > 2 and p1h > 5 else "📈 Climbing" if p5m > 0.5 and p1h > 2 else "➡️ Flat"
             self.send_telegram(
                 f"🎯 <b>Alpha Signal — {token}</b>{token_link(addr)}\n"
                 f"Score: <b>{score}/10</b> {bar(score)} | {momentum}\n"
                 f"{self._fmt_meta(data)} | Price: {fmt_price(price)}\n"
-                f"Change: 5m {sign(p5m)}% | 1h {sign(p1h)}%\n"
-                f"💰 <b>$100 → {fmt_usd(float(data.get('est_profit_pct', 0)))}</b> est. profit"
+                f"Change: 5m {sign(p5m)}% | 1h {sign(p1h)}%"
             )
         self.cache.add(key)
 
     def _handle_arb(self, data, topic):
         token = data.get("token", "?")
         buy_dex, sell_dex = data.get("buy_dex", ""), data.get("sell_dex", "")
-        key = f"arb:{buy_dex}:{sell_dex}:{token}"
+        chain = data.get("chainId", "solana")
+        key = f"arb:{chain}:{buy_dex}:{sell_dex}:{token}"
         if key in self.cache: return
 
         spread = float(data.get("spread_pct", 0))
-        net_prof = (100 * spread / 100) - (100 * EST_SLIPPAGE_PCT / 100) - SOLANA_GAS
-        if net_prof < MIN_ARB_NET_PROFIT: return
+        net_prof = float(data.get("net_profit_100", 0))
+        if net_prof <= 0:
+            est_slippage = float(data.get("est_slippage_pct", 0))
+            gas_cost = float(data.get("gas_cost_usd", 0))
+            net_prof = (100 * spread / 100) - (100 * est_slippage / 100) - gas_cost
+
+        if net_prof < self.config.min_alert_arb_net_profit_100:
+            return
 
         buy_p, sell_p = float(data.get("buy_price", 0)), float(data.get("sell_price", 0))
         max_size = float(data.get("max_size_usd", 0))
@@ -300,10 +298,11 @@ class AlertService(BaseService):
         
         self.send_telegram(
             f"⚡ <b>Arb — {token}</b> [{rating}]{dex_link(buy_addr)}\n"
-            f"Spread: <b>{fmt_pct(spread)}</b> | Buy: {buy_dex} ({fmt_price(buy_p)})\n"
+            f"Chain: {chain} | Spread: <b>{fmt_pct(spread)}</b>\n"
+            f"Buy: {buy_dex} ({fmt_price(buy_p)})\n"
             f"Net/$100: <b>{fmt_usd(net_prof)}</b> | Max: {fmt_usd(max_size)}\n"
             f"Sell: {sell_dex} ({fmt_price(sell_p)})\n"
-            f"<i>Strategy: Execution via aggregator or direct Jito tip</i>"
+            f"<i>Execution candidate</i>"
         )
         self.cache.add(key)
 
@@ -314,6 +313,8 @@ class AlertService(BaseService):
 
         keyword = data.get("keyword", "")
         spike, p1h, p5m = float(data.get("volume_spike", 0)), float(data.get("price_change_1h", 0)), float(data.get("price_change_5m", 0))
+        if spike < self.config.min_alert_narrative_spike:
+            return
         trend = "Bullish" if p5m > 0 and p1h > 0 else "Bearish" if p5m < 0 and p1h < 0 else "Mixed"
         rating = "🟢 HIGH" if spike >= 5 and p1h > 5 else "🟡 MID" if spike >= 3 else "⚪ LOW"
         
@@ -321,8 +322,7 @@ class AlertService(BaseService):
             f"📡 <b>Narrative — {token}</b> [{category}]{token_link(data.get('address', ''))}\n"
             f"Spike: <b>{spike:.1f}x</b> [{rating}] | Keyword: {keyword}\n"
             f"{self._fmt_meta(data)}\n"
-            f"Change: 1h {sign(p1h)}% | 5m {sign(p5m)}% | Trend: {trend}\n"
-            f"💰 <b>$100 → {fmt_usd(max(p1h * 0.5, 0))}</b> (extrapolated trend)"
+            f"Change: 1h {sign(p1h)}% | 5m {sign(p5m)}% | Trend: {trend}"
         )
         self.cache.add(key)
 
@@ -372,7 +372,7 @@ class AlertService(BaseService):
 
     def _handle_rewards(self, data, topic):
         if "/summary" in topic:
-            top = [p for p in data.get("top_pools", []) if 100 * float(p.get("effective_apr", 0)) / 3650 >= MIN_PROFIT_100]
+            top = [p for p in data.get("top_pools", []) if float(p.get("effective_apr", 0)) >= self.config.min_alert_rewards_apr]
             if not top: return
             if f"rtop:{top[0].get('pair')}" in self.cache: return
 
@@ -426,7 +426,7 @@ class AlertService(BaseService):
             "🛡️ Managing:   Hedge | Inventory | PnL\n"
             "🎯 Optimizing: CLMM | Rewards | Watchlist\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
-            f"All signals routing to Telegram. Min arb: {fmt_usd(MIN_ARB_NET_PROFIT)} 💰"
+            f"All signals routing to Telegram. Min arb: {fmt_usd(self.config.min_alert_arb_net_profit_100)}"
         )
 
         while self.running:

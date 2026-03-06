@@ -26,4 +26,9 @@ class AlertConfig(BaseServiceConfig):
     alert_on_rewards: bool = True
     alert_on_watchlist: bool = True
 
+    min_alert_arb_net_profit_100: float = 12.0
+    min_alert_alpha_score: int = 6
+    min_alert_narrative_spike: float = 3.0
+    min_alert_rewards_apr: float = 40.0
+
     model_config = {"env_prefix": "ALERT_", "env_file": ".env"}

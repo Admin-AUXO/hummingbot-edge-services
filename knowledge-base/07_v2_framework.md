@@ -1,72 +1,160 @@
 # 🏗️ Hummingbot V2 Framework
 
-> Architecture, controllers, scripts, and multi-strategy deployment
+> Last reviewed: March 6, 2026
+> This file reflects the current V2 model used across recent Hummingbot releases.
 
 ---
 
-## Architecture
+## 1. The V2 Stack
 
+Hummingbot V2 is built from three layers.
+
+### Scripts
+
+Use scripts when you want:
+
+- a simple entry point
+- one strategy in one file
+- faster experimentation
+
+The standard multi-controller launcher is still `v2_with_controllers.py`.
+
+### Controllers
+
+Controllers are reusable strategy modules.
+
+They:
+
+- read market data
+- produce trading actions
+- create or stop executors
+- work well for production deployments
+
+### Executors
+
+Executors are the units that actually manage trade workflows.
+
+Current executor families in this repo:
+
+- `position_executor`
+- `arbitrage_executor`
+- `grid_executor`
+- `dca_executor`
+- `twap_executor`
+- `xemm_executor`
+- `lp_executor`
+
+## 2. Current Controller Families
+
+### Market making
+
+- `pmm_simple`
+- `pmm_dynamic`
+- `dman_maker_v2`
+
+### Directional trading
+
+- `bollinger_v1`
+- `bollinger_v2`
+- `macd_bb_v1`
+- `supertrend_v1`
+- `dman_v3`
+
+### Generic / multi-venue
+
+- `xemm_multiple_levels`
+- `arbitrage_controller`
+- `grid_strike`
+- `lp_rebalancer`
+
+## 3. What Is Outdated Now
+
+Do not anchor on older names such as:
+
+- `xemm_v2`
+- `gridstrike_v2`
+- `directional_v2`
+
+Those names still appear in older guides, but current local controller files and official docs use the controller names listed above.
+
+## 4. Current Architecture Pattern
+
+```text
+Market Data Provider
+    ↓
+Controller
+    ↓
+ExecutorActions
+    ↓
+Executors
+    ↓
+Connector / Gateway / Exchange
 ```
-V2 Strategy Framework
-├── Scripts (Python entry points)
-│   ├── v2_with_controllers.py       # Generic controller loader
-│   └── v2_directional_rsi.py        # RSI-based directional
-├── Controllers (Strategy Logic)
-│   ├── market_making/pmm_simple
-│   ├── arbitrage/xemm_v2
-│   └── grid/gridstrike_v2
-├── Executors (Order Management)
-│   ├── ArbitrageExecutor
-│   ├── PositionExecutor
-│   └── DCAExecutor
-└── Market Data Provider (Candles + Indicators)
-```
 
-## Creating Configs
+## 5. Best Way to Work With V2
 
-```bash
-# Interactive (inside Hummingbot CLI):
-create --controller-config market_making.pmm_simple
-# Saves to: /conf/controllers/<name>.yml
+### Local or learning workflow
 
-# Run single controller:
-start --script v2_with_controllers.py --conf my_config.yml
-```
+- Hummingbot Client
+- generate config
+- run one controller or a small controller bundle
 
-## Multi-Controller Setup
+### Multi-bot / production workflow
+
+- Hummingbot API
+- external services for signals and operations
+- Dashboard / MCP / automation around API-driven deployments
+
+## 6. Multi-Controller Usage
+
+Use multiple controllers when:
+
+- you want several pairs in one bot
+- you want separate logic per market
+- you want one risk profile per controller
+
+Example structure:
 
 ```yaml
-# conf/scripts/conf_v2_with_controllers.yml
 controllers_config:
-  - pmm_eth_usdt.yml
-  - pmm_sol_usdt.yml
-  - arb_eth_cross.yml
+  - pmm_base_weth.yml
+  - pmm_sol_usdc.yml
+  - dir_newtoken_base.yml
 ```
 
-## File Locations
+## 7. LP Is Now Part of the Main Story
 
-| What               | Path                 |
-| ------------------ | -------------------- |
-| Scripts            | `/scripts/`          |
-| Controller configs | `/conf/controllers/` |
-| Script configs     | `/conf/scripts/`     |
-| Logs               | `/logs/`             |
+V2 now includes:
 
-## V2 Strategies (latest: v2.11.0)
+- `lp_executor`
+- `lp_rebalancer`
 
-- **PMM Simple**: Pure Market Making (modernized in v2.5 with PositionsHeld)
-- **PMM Dynamic**: Volatility-adaptive spreads using NATR
-- **XEMM V2**: Cross-Exchange Market Making with hedging
-- **GridStrike V2**: Grid trading with strike support
-- **CLMM**: Concentrated liquidity on Solana DEXs
-- **Directional V2**: Trend-following with MACD/Bollinger indicators
-- **DMAN V3**: Bollinger Band mid-price shifting
-- **Jupiter integration**: Swap routing on Solana
+That means concentrated-liquidity automation should be treated as a first-class V2 workflow, not an afterthought.
 
-## Recent V2 Changes (v2.5-v2.11)
+## 8. Practical Strategy Mapping
 
-- Global stop-loss and per-strategy leverage support
-- Automatic position-reduction on opposite signals
-- 40%+ backtesting performance improvement (ExecutorSimulation)
-- Improved Solana/EVM connector reliability (pool discovery, CLMM stability)
-- Jupiter migrated to new API
+| Use case | Best V2 component |
+| --- | --- |
+| Single-pair prototype | Script |
+| Reusable production market making | Controller |
+| Directional token scanner entry | Directional controller |
+| Cross-venue hedge / MM | `xemm_multiple_levels` |
+| CLMM automation | `lp_rebalancer` + `lp_executor` |
+| API-triggered single workflow | Executor |
+
+## 9. File Locations
+
+| What | Typical path |
+| --- | --- |
+| Controller code | `controllers/` |
+| Executors | `hummingbot/strategy_v2/executors/` |
+| Controller configs | `conf/controllers/` |
+| Script configs | `conf/scripts/` |
+
+---
+
+Next reads:
+
+- [05_configurations.md](05_configurations.md)
+- [02_strategies.md](02_strategies.md)
+- [15_edge_systems.md](15_edge_systems.md)

@@ -76,6 +76,7 @@ def is_new_listing(pair_data, config):
 def _base_payload(pair_data):
     bt = pair_data.get("baseToken", {})
     return {
+        "chainId": pair_data.get("chainId", ""),
         "token": bt.get("symbol", "?"),
         "address": bt.get("address", ""),
         "pair": pair_data.get("pairAddress", ""),

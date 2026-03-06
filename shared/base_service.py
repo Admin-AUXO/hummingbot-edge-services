@@ -8,6 +8,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from shared.utils import chain_address_key, normalize_chain_id
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -87,47 +89,78 @@ class BaseService:
     def on_tick(self):
         pass
 
-    def _build_dex_tokens_url(self, token_addresses):
+    def _default_chain_id(self):
+        return normalize_chain_id(getattr(self.config, "default_chain_id", "solana"))
+
+    def _chain_key(self, chain_id, address):
+        return chain_address_key(chain_id, address)
+
+    def _item_chain_and_address(self, item):
+        if isinstance(item, dict):
+            chain_id = normalize_chain_id(item.get("chainId") or item.get("chain_id") or item.get("chain"))
+            return chain_id, item.get("address", "")
+        return self._default_chain_id(), str(item or "")
+
+    def _build_dex_tokens_url(self, token_addresses, chain_id=None):
         base_url = getattr(
             self.config,
             "dex_token_url",
-            "https://api.dexscreener.com/tokens/v1/solana",
+            "https://api.dexscreener.com/tokens/v1",
         )
+        chain_id = normalize_chain_id(chain_id or self._default_chain_id())
         addresses = ",".join(token_addresses)
         if "/tokens/v1/" in base_url:
             return f"{base_url.rstrip('/')}/{addresses}"
+        if base_url.rstrip("/").endswith("/tokens/v1"):
+            return f"{base_url.rstrip('/')}/{chain_id}/{addresses}"
         if base_url.endswith("/"):
             return f"{base_url}{addresses}"
         return f"{base_url}/{addresses}"
 
-    def fetch_market_data(self, addresses):
-        if not addresses:
+    def fetch_market_data(self, items):
+        if not items:
             return {}
-        addresses = list(dict.fromkeys(addresses))
+
+        grouped = {}
+        for item in items:
+            chain_id, address = self._item_chain_and_address(item)
+            if not address:
+                continue
+            grouped.setdefault(chain_id, [])
+            if address not in grouped[chain_id]:
+                grouped[chain_id].append(address)
+
         results = {}
         batch_size = max(1, min(30, int(getattr(self.config, "dex_batch_size", 30))))
-        for i in range(0, len(addresses), batch_size):
-            chunk = addresses[i : i + batch_size]
-            try:
-                url = self._build_dex_tokens_url(chunk)
-                resp = self.session.get(url, timeout=15)
-                resp.raise_for_status()
-                data = resp.json()
-                pairs = data.get("pairs") if isinstance(data, dict) else data
-                if not pairs:
-                    continue
-                for p in pairs:
-                    if p.get("chainId") == "solana":
+        for chain_id, addresses in grouped.items():
+            for i in range(0, len(addresses), batch_size):
+                chunk = addresses[i : i + batch_size]
+                try:
+                    url = self._build_dex_tokens_url(chunk, chain_id=chain_id)
+                    resp = self.session.get(url, timeout=15)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    pairs = data.get("pairs") if isinstance(data, dict) else data
+                    if not pairs:
+                        continue
+                    for p in pairs:
+                        pair_chain = normalize_chain_id(p.get("chainId"))
+                        if pair_chain != chain_id:
+                            continue
                         addr = p.get("baseToken", {}).get("address", "")
+                        key = self._chain_key(pair_chain, addr)
                         liq = float(p.get("liquidity", {}).get("usd", 0))
-                        if addr not in results or liq > results[addr].get("liquidity", 0):
-                            results[addr] = {
+                        if key not in results or liq > results[key].get("liquidity", 0):
+                            results[key] = {
+                                "chainId": pair_chain,
+                                "address": addr,
+                                "symbol": p.get("baseToken", {}).get("symbol", "?"),
                                 "volume_24h": float(p.get("volume", {}).get("h24", 0)),
                                 "liquidity": liq,
                                 "price": float(p.get("priceUsd", 0)),
                                 "pair_address": p.get("pairAddress", ""),
                                 "dex": p.get("dexId", ""),
                             }
-            except Exception as e:
-                self.logger.error(f"Market data fetch failed for chunk {i}: {e}")
+                except Exception as e:
+                    self.logger.error(f"Market data fetch failed for {chain_id} chunk {i}: {e}")
         return results

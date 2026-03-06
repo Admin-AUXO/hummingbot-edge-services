@@ -1,45 +1,138 @@
 # 🤖 Hummingbot Core Features
 
-> An overview of the open-source algorithmic trading framework's capabilities
+> Last reviewed: March 6, 2026
+> Current official release line referenced here: Hummingbot / Gateway `v2.13.0`
 
 ---
 
-## 1. Modular Trading Framework (V2)
+## 1. Strategy V2 Is the Default
 
-Hummingbot's V2 architecture separates strategy logic into distinct, reusable components:
+Hummingbot now centers on the **Strategy V2** stack:
 
-- **Controllers**: The "brain". Analyzes data, calculates trends, and decides _what_ orders to create (e.g., `pmm_simple`, `pmm_dynamic`, `directional_v2`, `dman_v3`, `xemm_v2`).
-- **Executors**: The "hands". Manages the lifecycle of an order (e.g., `position_executor` for stop-loss/take-profit tracking, `dca_executor` for averaging in). v2.5+ added global stop-loss and per-strategy leverage.
-- **Indicators & Oracles**: Natively ingests trading view style technical indicators (MACD, Bollinger Bands, NATR) and on-chain oracle data.
+- **Scripts**: simple Python entry points for prototyping or single-strategy bots
+- **Controllers**: reusable production strategy modules loaded by `v2_with_controllers.py`
+- **Executors**: self-managing trading workflows such as `position_executor`, `arbitrage_executor`, `grid_executor`, `dca_executor`, `twap_executor`, `xemm_executor`, and `lp_executor`
 
-## 2. Universal Connectivity
+Official docs now recommend V2 for new work rather than legacy V1 templates.
 
-Hummingbot acts as a unified translation layer between your logic and the blockchain/exchange:
+## 2. Deployment Paths
 
-- **CEX & DEX Support**: Connects to over 100+ exchanges including Binance, Uniswap V3/V4, Raydium, and Jupiter. Latest: v2.11.0.
-- **Zero-Gas CLOBs**: Native support for high-performance decentralized order books like **Hyperliquid** (up to 50x, HyperEVM) and **dYdX v4** (up to 50x, Cosmos appchain), enabling CEX-like execution speeds without giving up self-custody.
-- **Wallet Gateway**: Uses a secure local Gateway server to map your Web3 wallets to DEXs across Arbitrum, Optimism, Base, Solana, and Avalanche. Private keys never leave your machine.
+Hummingbot is no longer just a local CLI workflow.
 
-## 3. Advanced Execution Capabilities
+### Best deployment mode by use case
 
-- **Jito MEV Integration**: On Solana, standard priority fees often fail for extreme high-frequency strategies. Hummingbot's ecosystem supports sending transactions as Jito Bundles with out-of-protocol tip mechanics to bypass the mempool and snipe block-0 events.
-- **Latency Arbitrage**: Capable of executing cross-venue strategies (e.g., matching Coinbase Centralized API prices against Aerodrome Base DEX pairs) in milliseconds.
+| Mode | Best for | Notes |
+| --- | --- | --- |
+| **Hummingbot Client** | Learning, local single-bot use, quick manual operation | Still the simplest starting point |
+| **Hummingbot API** | Multi-bot deployment, cloud hosting, orchestration | Better fit for larger setups and service integrations |
+| **Dashboard / Condor / MCP** | Operations, remote control, AI-assisted workflows | Built on top of API-driven flows |
 
-## 4. Extensibility & Third-Party Integrations
+## 3. DEX Connectivity via Gateway
 
-- **MQTT External Triggers**: By enabling the EMQX broker, Hummingbot can listen to external Python/Node.js scripts. This allows you to run separate chain-scrapers that detect new token pools and instantly feed the contract address to Hummingbot via MQTT.
-- **Custom Scripts**: Users can write custom execution logic in lightweight Python scripts that interact with the core engine, entirely bypassing the need to compile the C++ backend.
-- **Edge Services Ecosystem**: Python microservices publishing signals to MQTT. Core: regime detection, session timing, inventory monitoring, delta-neutral hedging, PnL analytics, correlation analysis, funding rates, and Telegram alerts. Scanners: alpha pipeline (DexScreener scoring), cross-DEX arb, multi-pair funding scanner, narrative/social momentum, LP reward tracking, and watchlist automation. Orchestration: CLMM range optimizer. See [15_edge_systems](15_edge_systems.md) and [01_glossary](01_glossary.md#edge-services-custom-mqtt-microservices).
+Gateway is the TypeScript middleware layer for on-chain trading.
 
-## 5. Storage & Analytics
+It standardizes three connector schemas:
 
-Hummingbot respects data ownership and provides multiple layers of historical trade analysis:
+- **Router**: best-route swap execution
+- **AMM**: constant-product pools
+- **CLMM**: concentrated-liquidity pools
 
-- **Local Data**: Trade history, order states, and full order book snapshots are auto-saved as `.csv` files locally.
-- **SQLite Tracker**: Tracks high-density real-time market data internally via SQLite.
-- **PostgreSQL Scaling**: For users running a "Swarm" of multiple bots, Hummingbot natively connects to standard PostgreSQL databases to aggregate all PnL and decision data into a unified, queryable location.
-- **Internal Dashboard**: Users can analyze past decisions directly in the CLI by typing `history --verbose` or export them for custom AI analysis tools.
+### Active Gateway connector families
+
+| Family | Chains | Schemas |
+| --- | --- | --- |
+| **Jupiter** | Solana | Router |
+| **Raydium** | Solana | AMM, CLMM |
+| **Orca** | Solana | CLMM |
+| **Meteora** | Solana | CLMM |
+| **Uniswap** | Ethereum / major EVM networks | Router, AMM, CLMM |
+| **PancakeSwap** | BNB / EVM | Router, AMM, CLMM |
+
+### Legacy / conditional families
+
+These exist in the broader Hummingbot ecosystem, but support quality can vary by release and connector upgrade status:
+
+- `curve`
+- `balancer`
+- `sushiswap`
+- `quickswap`
+- `traderjoe`
+
+Treat them as **verify-first** connectors, not default recommendations.
+
+## 4. CLOB DEX and Perp Support
+
+For perps, hedging, or lower-latency orderbook execution, Hummingbot also supports non-Gateway connectors such as:
+
+- **Hyperliquid**
+- **dYdX v4**
+- **Injective**
+
+These are important for:
+
+- delta-neutral hedging
+- directional perp strategies
+- funding-rate trades
+- execution where AMM slippage is too expensive
+
+## 5. Current V2 Building Blocks
+
+### Controllers visible in this repo
+
+#### Market making
+
+- `pmm_simple`
+- `pmm_dynamic`
+- `dman_maker_v2`
+
+#### Directional trading
+
+- `bollinger_v1`
+- `bollinger_v2`
+- `macd_bb_v1`
+- `supertrend_v1`
+- `dman_v3`
+
+#### Generic / multi-venue
+
+- `xemm_multiple_levels`
+- `arbitrage_controller`
+- `grid_strike`
+- `lp_rebalancer`
+- `pmm_v1`
+
+### Executors visible in this repo
+
+- `position_executor`
+- `arbitrage_executor`
+- `grid_executor`
+- `dca_executor`
+- `twap_executor`
+- `xemm_executor`
+- `lp_executor`
+
+## 6. What Changed Recently That Matters
+
+Recent official release notes and docs matter more than older community examples.
+
+Key items to account for now:
+
+- `lp_executor` and `lp_rebalancer` are part of the current V2 story
+- Hummingbot API is now a first-class deployment path
+- Gateway connector coverage is cleaner, but not every popular DEX is officially maintained at the same level
+- config examples copied from older guides often use stale controller or connector names
+
+## 7. Practical Takeaways for This Repo
+
+- Use **official connector families first**: Solana via Jupiter/Raydium/Orca/Meteora, EVM via Uniswap/PancakeSwap
+- Use **API + services** when running multiple bots or external signal pipelines
+- Use **perp venues** such as Hyperliquid for hedge legs, not for new-token discovery
+- Prefer **generated fresh controller configs** over old copy-paste YAML
 
 ---
 
-> Start exploring the specific implementations: [02_strategies](02_strategies.md) and [05_configurations](05_configurations.md).
+Next reads:
+
+- [03_chains_and_dexs.md](03_chains_and_dexs.md)
+- [07_v2_framework.md](07_v2_framework.md)
+- [05_configurations.md](05_configurations.md)

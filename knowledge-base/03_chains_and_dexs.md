@@ -1,173 +1,143 @@
 # ⛓️ Chains & DEXs Reference
 
-> Comparing blockchains and decentralized exchanges for bot trading
+> Last reviewed: March 6, 2026
+> Focus: the best platforms you can use with Hummingbot now, not every interesting DEX in the market
 
 ---
 
-## Chain Rankings for Bot Trading
+## 1. Best Hummingbot-Usable Platforms Right Now
 
-### Tier 1: Best for Bots (Low fees + High volume + Fast)
+### Spot / AMM / Router venues
 
-| Chain         | Avg Gas/Trade | Block Time | Best DEXs                       | Why                                                                |
-| ------------- | ------------- | ---------- | ------------------------------- | ------------------------------------------------------------------ |
-| **Solana**    | < $0.01       | ~400ms     | Raydium, Jupiter, Orca, Meteora | Fastest execution. Essential for MEV/Sniping using Jito Tips.      |
-| **Arbitrum**  | $0.01-0.10    | ~0.25s     | Uniswap V3, Camelot, GMX        | Best L2 for DeFi. Deep liquidity, mature ecosystem                 |
-| **Base**      | $0.01-0.05    | ~2s        | Aerodrome, Uniswap V3           | Huge volume growth. Aerodrome serves as the premier liquidity hub. |
-| **BNB Chain** | $0.03-0.10    | ~3s        | PancakeSwap V3, Venus           | Mature, huge user base, very low fees                              |
+| Venue family | Chain | Official Hummingbot fit | Best for | Verdict |
+| --- | --- | --- | --- | --- |
+| **Jupiter** | Solana | Active Gateway connector | Best-route execution, directional entries, new-token access | **Top choice** |
+| **Raydium** | Solana | Active Gateway connector | AMM + CLMM, PMM, early-token liquidity | **Top choice** |
+| **Orca** | Solana | Active Gateway connector | CLMM and cleaner mature Solana pools | **Top choice** |
+| **Meteora** | Solana | Active Gateway connector | CLMM / DLMM and LP automation | **Top choice** |
+| **Uniswap** | Base / Arbitrum / Ethereum / other EVM | Active Gateway connector | Best all-around EVM venue family | **Top choice** |
+| **PancakeSwap** | BNB Chain / EVM | Active Gateway connector | Low-fee retail flow and new-token rotation on BNB | **Top choice** |
 
-### Tier 2: Good but Trade-offs
+### Perp / hedge venues
 
-| Chain         | Avg Gas/Trade | Block Time | Best DEXs             | Trade-off                                    |
-| ------------- | ------------- | ---------- | --------------------- | -------------------------------------------- |
-| **Optimism**  | $0.01-0.10    | ~2s        | Velodrome, Uniswap V3 | Good liquidity but less volume than Arbitrum |
-| **Polygon**   | $0.01-0.05    | ~2s        | QuickSwap, Uniswap V3 | Cheap but lower DeFi depth                   |
-| **Avalanche** | $0.05-0.30    | ~2s        | Trader Joe, Pangolin  | Fast finality, moderate fees                 |
+| Venue family | Chain | Hummingbot fit | Best for |
+| --- | --- | --- | --- |
+| **Hyperliquid** | Hyperliquid L1 | Active CLOB DEX connector | Hedge leg, perps, funding, directional leverage |
+| **dYdX v4** | dYdX appchain | Active CLOB DEX connector | Perps and hedge workflows |
+| **Injective** | Injective | Active CLOB DEX connector | On-chain orderbook strategies |
 
-### Tier 3: Specialized Use Cases
+## 2. Best Platform by Objective
 
-| Chain              | Gas           | Use Case                  | Notes                                                                          |
-| ------------------ | ------------- | ------------------------- | ------------------------------------------------------------------------------ |
-| **Ethereum L1**    | $1-50+        | Large trades only ($10K+) | Deepest liquidity but prohibitive gas for small trades                         |
-| **Hyperliquid L1** | **$0**        | **Perpetual futures**     | **Essential for Leveraged Scalping. Up to 50x leverage.**                      |
-| **dYdX v4**        | $0 (zero gas) | Perpetual futures         | Cosmos appchain, 0 gas, taker fees from 0.05%, up to 50x leverage              |
-| **Injective**      | $0 (zero gas) | Spot & Perps              | Cosmos appchain, 0 gas, fully on-chain orderbook, negative maker fees for VIPs |
-| **Monad**          | < $0.01       | Spot (emerging)           | EVM-compatible L1, 10K TPS, 1s blocks. Mainnet Nov 2025. Growing DEX ecosystem |
-| **Berachain**      | < $0.01       | Spot & Perps              | Cosmos SDK L1 with Proof-of-Liquidity. EVM-compatible. Mainnet Feb 2025        |
+| Objective | Best platform | Why |
+| --- | --- | --- |
+| **Small-account spot trading** | Solana via Jupiter / Raydium | Lowest friction and cheapest execution |
+| **Best non-Solana new-token venue** | Base via Uniswap | Strong token-launch activity plus manageable fees |
+| **Best BNB ecosystem access** | PancakeSwap on BNB Chain | High retail flow and official Hummingbot support |
+| **Best mature EVM spot venue** | Uniswap on Arbitrum | Strong depth for majors and later-stage tokens |
+| **Best hedge venue** | Hyperliquid | Zero-gas trading model and strong perp liquidity |
+| **Best CLMM experimentation** | Meteora / Raydium / Orca | Active Solana LP ecosystem plus current connector support |
 
-### Chain Selection Flowchart
+## 3. Practical Chain Ranking
 
-```
-What are you trading?
-├── Perpetuals/Derivatives
-│   ├── Want zero gas? → Hyperliquid (50x) or dYdX v4 (50x)
-│   ├── Want highest leverage? → GMX (100x on Arbitrum)
-│   └── Want on-chain composability? → GMX (Arbitrum)
-│
-├── Spot tokens
-│   ├── Trade size > $10,000?
-│   │   ├── YES → Ethereum L1 (deepest liquidity) or Arbitrum
-│   │   └── NO → Continue below
-│   │
-│   ├── Doing Block-0 Sniping?          → Solana or Base exclusively
-│   ├── Need fastest execution (< 1s)?  → Solana
-│   ├── Want absolute cheapest gas?     → Solana or Base
-│   ├── Trading BNB ecosystem tokens?   → BNB Chain
-│   ├── Want best L2 liquidity?         → Arbitrum
-│   └── Want growing ecosystem + cheap? → Base
-│
-└── Stablecoins
-    ├── Stablecoin swaps → Curve (Ethereum or Arbitrum)
-    └── Cross-chain arb  → Arbitrum ↔ Base ↔ Solana
-```
+### Tier A — default choices
 
----
+| Chain | Why it matters | Best Hummingbot venues |
+| --- | --- | --- |
+| **Solana** | Fastest reaction loop, cheapest fees, strongest early-token flow | Jupiter, Raydium, Orca, Meteora |
+| **Base** | Best non-Solana chain for fresh token opportunities and low fees | Uniswap |
+| **BNB Chain** | Good low-fee retail ecosystem and token rotation | PancakeSwap |
+| **Arbitrum** | Stronger for mature tokens, hedged MM, and established liquidity | Uniswap |
 
-## DEX Deep Dives
+### Tier B — selective use
 
-### Uniswap (EVM chains)
+| Chain | Use only when |
+| --- | --- |
+| **Ethereum mainnet** | Trade size is large enough that gas is not dominant |
+| **Polygon / Optimism** | You already need their ecosystem exposure |
+| **Avalanche** | You specifically need legacy connector coverage there |
 
-- **Versions**: V2 (basic AMM), V3 (concentrated liquidity), V4 (hooks/custom logic — live Jan 2025, 12 chains)
-- **V4 Hooks**: Plugin system for custom pool logic — dynamic fees, TWAMM, MEV rebates, auto-compounding. 2500+ hook-enabled pools
-- **Chains**: Ethereum, Arbitrum, Base, Polygon, Optimism, BNB Chain
-- **Volume**: Top EVM DEX, though Raydium now leads globally by volume
-- **Bot suitability**: ⭐⭐⭐⭐⭐ Deep liquidity, wide pair coverage
-- **Hummingbot connector**: `uniswap_<chain_name>`
+## 4. DEX Families to Prioritize
 
-### Raydium (Solana)
+### A. Solana stack
 
-- **Type**: Hybrid AMM + order book integration
-- **Pools**: Standard (V2-style) + Concentrated (V3-style CLMM)
-- **Volume**: Topped Uniswap in Jan 2025, ~27% of all DEX volume
-- **Bot suitability**: ⭐⭐⭐⭐⭐ Lightning fast, near-zero gas
-- **Hummingbot connector**: `raydium_solana`
+#### Jupiter
 
-### Jupiter (Solana)
+- best for **entry and exit execution quality**
+- strong choice for **new-token directional strategies**
+- good default when you want routing instead of managing pool choice yourself
 
-- **Type**: DEX aggregator (routes across multiple Solana DEXs)
-- **Function**: Finds best price across Raydium, Orca, Meteora, etc.
-- **Bot suitability**: ⭐⭐⭐⭐⭐ Best execution on Solana
-- **Hummingbot connector**: `jupiter_solana` (Router type)
+#### Raydium
 
-### PancakeSwap (BNB Chain + multi-chain)
+- best for **direct pool interaction**
+- useful for **PMM**, **later-stage new-token MM**, and **cross-pool comparisons**
 
-- **Versions**: V2, V3 (concentrated), Smart Router
-- **Chains**: BNB Chain (primary), Ethereum, Arbitrum
-- **Volume**: At times surpassed Uniswap in daily volume
-- **Bot suitability**: ⭐⭐⭐⭐ Ultra-low fees on BNB Chain
-- **Hummingbot connector**: `pancakeswap_<chain_name>`
+#### Orca and Meteora
 
-### Aerodrome / Aero (Base → multi-chain)
+- better for **CLMM / LP** use cases after a token matures
+- not my first choice for the first minutes of a listing
 
-- **Type**: ve(3,3) DEX — leading DEX on Base (rebranding to Aero)
-- **Volume**: $810M avg daily (Aug 2025), $177B+ total in 2025. 50%+ of Base DEX TVL
-- **Expansion**: Ethereum mainnet planned Q2 2026
-- **Bot suitability**: ⭐⭐⭐⭐ Massive liquidity, good spreads on Base
+### B. EVM stack
 
-### Curve Finance (Multi-chain)
+#### Uniswap
 
-- **Type**: Stablecoin-optimized AMM
-- **Specialty**: Minimal slippage for pegged-asset swaps
-- **Bot suitability**: ⭐⭐⭐⭐ Perfect for stablecoin arbitrage
-- **Hummingbot connector**: `curve_ethereum`
+- best all-around EVM venue family
+- strongest choice for **Base** and **Arbitrum** workflows in Hummingbot
+- best non-Solana default for new-token trading where support quality matters
 
-### GMX (Arbitrum + Avalanche + expanding)
+#### PancakeSwap
 
-- **Type**: Perpetual futures DEX
-- **Leverage**: Up to 100x (V2.3+, varies by asset)
-- **Model**: "Real yield" — fees distributed to stakers
-- **Features**: Cross-collateral, cross-margin, gas abstraction (June 2025), 87+ listed tokens
-- **Bot suitability**: ⭐⭐⭐⭐ Strong perp strategies, deep Arbitrum liquidity
+- best BNB Chain default
+- useful for **retail-flow tokens**, lower-fee spot, and later PMM after spreads normalize
 
-### Orca (Solana)
+## 5. Venues Worth Watching but Not Default Hummingbot Recommendations
 
-- **Type**: CLMM (concentrated liquidity)
-- **Specialty**: User-friendly Solana DEX
-- **Bot suitability**: ⭐⭐⭐⭐ Near-instant, low fees
-- **Hummingbot connector**: `orca_solana`
+These can be good markets, but they should not be documented as default Hummingbot choices unless you verify connector support for your exact version:
 
-### Meteora (Solana)
+- Aerodrome
+- Camelot
+- GMX
+- Velodrome
 
-- **Type**: DLMM (Dynamic Liquidity Market Maker)
-- **Specialty**: Bin-based liquidity for zero-slippage within bins
-- **Volume**: $39.9B in Jan 2025 (40x growth). 15%+ of Solana DEX volume. TVL $750M+
-- **Upgrades**: Q1 2026 — on-chain limit orders, live PnL tracking, auto-compounding vaults
-- **Bot suitability**: ⭐⭐⭐⭐ Advanced LP strategies
-- **Hummingbot connector**: `meteora_solana`
+Reason: they may be attractive markets, but they are not the cleanest official default connector path in current Hummingbot docs.
 
----
+## 6. Best Platforms for New Tokens
 
-## Hummingbot Gateway Connector Reference
+### Use this ranking
 
-### EVM Connectors
+| Rank | Chain / venue | Why |
+| --- | --- | --- |
+| **1** | Solana via Jupiter / Raydium | Deepest early-flow environment |
+| **2** | Base via Uniswap | Best non-Solana new-token venue Hummingbot can cleanly use |
+| **3** | BNB Chain via PancakeSwap | Strong retail launch flow with lower fees |
+| **4** | Arbitrum via Uniswap | Better once token matures or cross-lists |
 
-| DEX            | Connector Name        | Type | Chains                                      |
-| -------------- | --------------------- | ---- | ------------------------------------------- |
-| Uniswap V2     | `uniswap_<chain>`     | AMM  | Ethereum, Arbitrum, Base, Polygon, Optimism |
-| Uniswap V3     | `uniswap_<chain>`     | CLMM | Same as above                               |
-| PancakeSwap V2 | `pancakeswap_<chain>` | AMM  | BNB Chain, Ethereum                         |
-| PancakeSwap V3 | `pancakeswap_<chain>` | CLMM | BNB Chain, Ethereum                         |
-| Curve          | `curve_ethereum`      | AMM  | Ethereum, Arbitrum                          |
-| SushiSwap      | `sushiswap_<chain>`   | AMM  | Multi-chain                                 |
-| Balancer       | `balancer_<chain>`    | AMM  | Ethereum, Arbitrum                          |
+### What this means in practice
 
-### Solana Connectors
+- If you want **speed and frequency**, keep Solana in the mix
+- If you want **non-Solana diversification**, prioritize **Base** first, **BNB Chain** second
+- If you want **more mature liquidity**, rotate into **Arbitrum**
 
-| DEX                  | Connector Name   | Type                |
-| -------------------- | ---------------- | ------------------- |
-| Jupiter              | `jupiter_solana` | Router (aggregator) |
-| Raydium Standard     | `raydium_solana` | AMM                 |
-| Raydium Concentrated | `raydium_solana` | CLMM                |
-| Orca                 | `orca_solana`    | CLMM                |
-| Meteora              | `meteora_solana` | CLMM (DLMM)         |
+## 7. Connector Guidance
 
-> **Connector types defined in [01_glossary](01_glossary.md#hummingbot-specific)**: Router (aggregator), AMM (V2 pools), CLMM (V3 concentrated)
+Use the **official connector family names** from your installed version, not old blog-post naming schemes.
+
+Examples of family names you should expect in current docs and repo references:
+
+- `jupiter`
+- `raydium`
+- `orca`
+- `meteora`
+- `uniswap`
+- `pancakeswap`
+- `hyperliquid`
+- `hyperliquid_perpetual`
+
+Avoid assuming older chain-suffixed connector IDs unless your installed version actually generates them.
 
 ---
 
-## Gas Cost Impact on Profitability
+Next reads:
 
-> Full monthly gas cost breakdown by scenario: see [12_costs_and_setup](12_costs_and_setup.md#3-blockchain-gas--050-to-150mo-biggest-variable).
-
-**Formula**: `Min Trade Size = Gas Cost / Target Spread %`
-
-**Rule of thumb**: If gas costs eat > 30% of expected profit, switch to a cheaper chain. Solana is the only viable chain for $20 trade sizes at 0.5% spreads.
+- [02_strategies.md](02_strategies.md)
+- [05_configurations.md](05_configurations.md)
+- [15_edge_systems.md](15_edge_systems.md)

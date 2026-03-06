@@ -1,12 +1,17 @@
 [
-  {"keyword": "AI agent crypto", "category": "AI_AGENTS", "tokens": ["AI16Z", "GRIFFAIN", "ARC", "GOAT", "AIXBT", "VIRTUAL", "COOKIE"]},
-  {"keyword": "DePIN crypto network", "category": "DEPIN", "tokens": ["RENDER", "HNT", "MOBILE", "IO", "GRASS", "NOSANA"]},
-  {"keyword": "meme coin solana trending", "category": "MEME_SOL", "tokens": ["BONK", "WIF", "POPCAT", "MEW", "FARTCOIN", "TRUMP", "BOME", "CHILLGUY", "MOODENG", "PNUT"]},
-  {"keyword": "RWA real world assets token", "category": "RWA", "tokens": ["ONDO", "PENDLE", "PARCL"]},
-  {"keyword": "liquid staking solana DeFi", "category": "LST_DEFI", "tokens": ["JITOSOL", "MSOL", "JUP", "RAY", "ORCA", "DRIFT", "KMNO"]},
-  {"keyword": "gaming crypto play", "category": "GAMING", "tokens": ["ATLAS", "TENSOR", "NEON"]},
-  {"keyword": "Solana infrastructure layer", "category": "INFRA", "tokens": ["PYTH", "W", "JTO", "DEEP"]},
-  {"keyword": "political meme trump melania", "category": "POLITICAL", "tokens": ["TRUMP", "MELANIA", "PENGU"]},
-  {"keyword": "concentrated liquidity DEX AMM", "category": "CLMM_DEX", "tokens": ["RAY", "ORCA", "JUP", "DRIFT", "KMNO"]},
-  {"keyword": "funding rate arbitrage perp futures", "category": "FUNDING_ARB", "tokens": ["SOL", "WIF", "BONK", "POPCAT", "FARTCOIN", "TRUMP"]}
+  {"keyword": "AI agent crypto autonomous", "category": "AI_AGENTS", "tokens": ["VIRTUAL", "COOKIE", "AIXBT", "AI16Z", "ARC", "GOAT"]},
+  {"keyword": "meme coin trending", "category": "MEME", "tokens": ["PENGU", "WIF", "BONK", "PEPE", "FLOKI", "DOGE", "SHIB"]},
+  {"keyword": "RWA real world assets tokenization", "category": "RWA", "tokens": ["ONDO", "PENDLE", "MKR", "ENA"]},
+  {"keyword": "decentralized exchange dex amm", "category": "DEXS", "tokens": ["UNI", "JUP", "RAY", "ORCA", "CAKE", "SUSHI"]},
+  {"keyword": "liquid staking lsd", "category": "LIQUID_STAKING", "tokens": ["LDO", "RPL", "JITOSOL", "MSOL", "CBETH"]},
+  {"keyword": "lending borrowing defi", "category": "LENDING", "tokens": ["AAVE", "MORPHO", "COMP", "MKR", "CRV"]},
+  {"keyword": "perpetuals derivatives funding", "category": "DERIVATIVES", "tokens": ["GMX", "DYDX", "HYPE", "SYN", "RDNT"]},
+  {"keyword": "bridge interoperability cross chain", "category": "BRIDGES", "tokens": ["W", "ZRO", "AXL", "STG", "SYN"]},
+  {"keyword": "DePIN decentralized infrastructure", "category": "DEPIN", "tokens": ["RENDER", "HNT", "TAO", "IO", "GRASS", "AKT"]},
+  {"keyword": "yield aggregator vault strategy", "category": "YIELD", "tokens": ["YFI", "PENDLE", "CVX", "AERO", "VELO"]},
+  {"keyword": "solana ecosystem infrastructure", "category": "SOL_INFRA", "tokens": ["SOL", "PYTH", "JTO", "JUP", "W"]},
+  {"keyword": "base ecosystem defi", "category": "BASE_DEFI", "tokens": ["AERO", "BRETT", "DEGEN", "COIN", "VIRTUAL"]},
+  {"keyword": "arbitrum ecosystem defi", "category": "ARB_DEFI", "tokens": ["ARB", "GMX", "RDNT", "MAGIC", "PENDLE"]},
+  {"keyword": "BSC ecosystem defi", "category": "BSC_DEFI", "tokens": ["BNB", "CAKE", "XVS", "ALPACA", "BAKE"]},
+  {"keyword": "bitcoin ecosystem", "category": "BTC_ECOSYSTEM", "tokens": ["BTC", "WBTC", "ORDI", "RUNE", "STX"]}
 ]

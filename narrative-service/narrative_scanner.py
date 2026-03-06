@@ -1,13 +1,16 @@
 import time
 
+from shared.utils import normalize_chain_id
 
-def score_narrative_token(pair_data, prev_volume, config):
-    bt = pair_data.get("baseToken", {})
+
+def score_narrative_token(pair_data, prev_volume, config, token_override=None):
+    chain_id = normalize_chain_id(pair_data.get("chainId"))
+    token = token_override or pair_data.get("baseToken", {})
     vol_data = pair_data.get("volume", {})
     vol_24h = float(vol_data.get("h24", 0))
     liq = float(pair_data.get("liquidity", {}).get("usd", 0))
 
-    if vol_24h < config.min_volume_24h or liq < config.min_liquidity:
+    if vol_24h < config.min_volume_for(chain_id) or liq < config.min_liquidity_for(chain_id):
         return None
 
     txns = pair_data.get("txns", {}).get("h24", {})
@@ -18,8 +21,9 @@ def score_narrative_token(pair_data, prev_volume, config):
     spike = vol_24h / prev_volume if prev_volume > 0 else 0
     
     return {
-        "token": bt.get("symbol", "?"),
-        "address": bt.get("address", ""),
+        "chainId": chain_id,
+        "token": token.get("symbol", "?"),
+        "address": token.get("address", ""),
         "pair": pair_data.get("pairAddress", ""),
         "dex": pair_data.get("dexId", ""),
         "price": float(pair_data.get("priceUsd", 0)),
@@ -34,11 +38,14 @@ def score_narrative_token(pair_data, prev_volume, config):
 
 
 def filter_spiking_tokens(scored_tokens, config):
-    m_spike = config.min_volume_spike
-    m_p1h = getattr(config, "min_price_change_1h", 1.0)
-    return [
-        t for t in scored_tokens
-        if t["volume_spike"] >= m_spike
-        and t["price_change_5m"] > 0
-        and t["price_change_1h"] >= m_p1h
-    ]
+    filtered = []
+    for token in scored_tokens:
+        chain_id = normalize_chain_id(token.get("chainId"))
+        if token["volume_spike"] < config.min_spike_for(chain_id):
+            continue
+        if token["price_change_5m"] <= 0:
+            continue
+        if token["price_change_1h"] < config.min_price_change_1h_for(chain_id):
+            continue
+        filtered.append(token)
+    return filtered

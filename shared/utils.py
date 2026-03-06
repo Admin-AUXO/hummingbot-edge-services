@@ -1,5 +1,58 @@
+import json
 import time
 from datetime import datetime, timezone
+
+
+CHAIN_ALIASES = {
+    "sol": "solana",
+    "solana": "solana",
+    "base": "base",
+    "bsc": "bsc",
+    "bnb": "bsc",
+    "bnbchain": "bsc",
+    "bnb chain": "bsc",
+    "binance smart chain": "bsc",
+    "arb": "arbitrum",
+    "arbitrum": "arbitrum",
+    "eth": "ethereum",
+    "ethereum": "ethereum",
+}
+
+
+def normalize_chain_id(chain):
+    if not chain:
+        return "solana"
+    normalized = str(chain).strip().lower().replace("_", " ").replace("-", " ")
+    normalized = " ".join(normalized.split())
+    compact = normalized.replace(" ", "")
+    return CHAIN_ALIASES.get(normalized) or CHAIN_ALIASES.get(compact) or compact
+
+
+def chain_address_key(chain_id, address):
+    return f"{normalize_chain_id(chain_id)}:{str(address or '').strip().lower()}"
+
+
+def parse_csv_list(value):
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [item.strip() for item in str(value).split(",") if item.strip()]
+
+
+def parse_json_mapping(value, default=None):
+    if isinstance(value, dict):
+        return value
+    if value is None:
+        return {} if default is None else default
+    raw = str(value).strip()
+    if not raw:
+        return {} if default is None else default
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else ({} if default is None else default)
+    except json.JSONDecodeError:
+        return {} if default is None else default
 
 def fmt_usd(v):
     v = float(v or 0)
